@@ -1,7 +1,7 @@
 # Alamos für Home Assistant (aPager PRO / AMweb)
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
-[![Validate](https://github.com/sebiweise/home-assistant-alarmos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alarmos/actions/workflows/validate.yml)
+[![Validate](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml)
 
 Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH](https://www.alamos.gmbh)
 (aPager PRO, AMweb). Sie bringt zwei Funktionen mit:
@@ -20,7 +20,7 @@ Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH]
 ### Über HACS (empfohlen)
 
 1. HACS öffnen → Menü (⋮) → **Benutzerdefinierte Repositories**
-2. URL `https://github.com/sebiweise/home-assistant-alarmos` mit Kategorie **Integration** hinzufügen
+2. URL `https://github.com/sebiweise/home-assistant-alamos` mit Kategorie **Integration** hinzufügen
 3. „Alamos (aPager PRO / AMweb)“ installieren und Home Assistant neu starten
 4. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Alamos**
 
