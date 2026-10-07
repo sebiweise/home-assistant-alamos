@@ -77,10 +77,11 @@ class AlamosAlarmManager:
     def _notify(
         self, event_type: str | None = None, data: dict[str, Any] | None = None
     ) -> None:
-        for listener in list(self._listeners):
+        # Iterate over copies: listeners may unsubscribe while being called.
+        for listener in self._listeners.copy():
             listener()
         if event_type is not None:
-            for listener in list(self._event_listeners):
+            for listener in self._event_listeners.copy():
                 listener(event_type, data or {})
 
     @callback

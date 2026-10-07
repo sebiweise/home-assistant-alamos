@@ -19,8 +19,9 @@ EVENT_DESCRIPTION = EventEntityDescription(
 )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
+# Home Assistant requires this exact coroutine signature.
+async def async_setup_entry(  # NOSONAR
+    hass: HomeAssistant,  # NOSONAR
     entry: AlamosConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:

@@ -74,7 +74,11 @@ SEND_FEEDBACK_SCHEMA = vol.Schema(
 RESET_ALARM_SCHEMA = vol.Schema({vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string})
 
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+# Home Assistant requires this exact coroutine signature.
+async def async_setup(  # NOSONAR
+    hass: HomeAssistant,
+    config: ConfigType,  # NOSONAR
+) -> bool:
     """Register the integration services."""
     _async_register_services(hass)
     return True
@@ -154,7 +158,6 @@ def _async_get_entries(
 
 
 async def async_send_feedback(
-    hass: HomeAssistant,
     entry: AlamosConfigEntry,
     mode: str,
     suppress_notification: bool | None = None,
@@ -212,7 +215,6 @@ def _async_register_services(hass: HomeAssistant) -> None:
             )
         results = [
             await async_send_feedback(
-                hass,
                 entry,
                 call.data[ATTR_MODE],
                 call.data.get(ATTR_SUPPRESS_NOTIFICATION),
@@ -221,7 +223,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
         ]
         return {"results": results}
 
-    async def _handle_reset_alarm(call: ServiceCall) -> None:
+    @callback
+    def _handle_reset_alarm(call: ServiceCall) -> None:
         for entry in _async_get_entries(hass, call.data.get(ATTR_CONFIG_ENTRY_ID)):
             entry.runtime_data.manager.async_clear(EVENT_TYPE_CLEARED)
 

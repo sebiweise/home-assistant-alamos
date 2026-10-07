@@ -34,8 +34,9 @@ BUTTONS: tuple[AlamosButtonEntityDescription, ...] = (
 )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
+# Home Assistant requires this exact coroutine signature.
+async def async_setup_entry(  # NOSONAR
+    hass: HomeAssistant,  # NOSONAR
     entry: AlamosConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
@@ -62,4 +63,4 @@ class AlamosFeedbackButton(AlamosEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Send the feedback."""
-        await async_send_feedback(self.hass, self._entry, self.entity_description.mode)
+        await async_send_feedback(self._entry, self.entity_description.mode)
