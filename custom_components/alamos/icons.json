@@ -1,0 +1,25 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "alarm": { "default": "mdi:alarm-light-off", "state": { "on": "mdi:alarm-light" } }
+    },
+    "button": {
+      "feedback_accept": { "default": "mdi:check-circle" },
+      "feedback_reject": { "default": "mdi:close-circle" }
+    },
+    "event": {
+      "webhook": { "default": "mdi:webhook" }
+    },
+    "sensor": {
+      "keyword": { "default": "mdi:fire-alert" },
+      "unit": { "default": "mdi:account-group" },
+      "last_alarm": { "default": "mdi:clock-alert" },
+      "alarm_count": { "default": "mdi:counter" },
+      "last_feedback": { "default": "mdi:reply" }
+    }
+  },
+  "services": {
+    "send_feedback": { "service": "mdi:reply" },
+    "reset_alarm": { "service": "mdi:alarm-off" }
+  }
+}

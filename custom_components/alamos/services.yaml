@@ -1,0 +1,27 @@
+send_feedback:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: alamos
+    mode:
+      required: true
+      default: accept
+      selector:
+        select:
+          translation_key: feedback_mode
+          options:
+            - accept
+            - reject
+    suppress_notification:
+      required: false
+      selector:
+        boolean:
+reset_alarm:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: alamos

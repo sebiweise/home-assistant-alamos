@@ -1,0 +1,13 @@
+{
+  "domain": "alamos",
+  "name": "Alamos (aPager PRO / AMweb)",
+  "codeowners": ["@sebiweise"],
+  "config_flow": true,
+  "dependencies": ["webhook"],
+  "documentation": "https://github.com/sebiweise/home-assistant-alarmos",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/sebiweise/home-assistant-alarmos/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

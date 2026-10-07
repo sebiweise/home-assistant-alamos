@@ -1,0 +1,190 @@
+"""Tests for the Alamos integration."""
+
+from datetime import timedelta
+from http import HTTPStatus
+
+import pytest
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_capture_events,
+    async_fire_time_changed,
+)
+
+from custom_components.alamos.const import (
+    CONF_API_KEY,
+    CONF_RESET_MINUTES,
+    CONF_WEBHOOK_ID,
+    DEFAULT_API_URL,
+    DOMAIN,
+    EVENT_ALARM,
+    EVENT_ALARM_CLEARED,
+    FEEDBACK_PATH,
+)
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.setup import async_setup_component
+
+WEBHOOK_ID = "test_webhook"
+FEEDBACK_URL = f"{DEFAULT_API_URL}{FEEDBACK_PATH}"
+
+
+async def _setup(hass: HomeAssistant, api_key: str = "secret") -> MockConfigEntry:
+    await async_setup_component(hass, "http", {})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Feuerwehr",
+        data={CONF_WEBHOOK_ID: WEBHOOK_ID},
+        options={CONF_API_KEY: api_key, CONF_RESET_MINUTES: 30},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_config_flow(hass: HomeAssistant) -> None:
+    """Test the user flow creates an entry with a webhook."""
+    await async_setup_component(hass, "http", {})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Feuerwehr", "api_key": " abc "}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Feuerwehr"
+    assert result["data"][CONF_WEBHOOK_ID]
+    assert result["options"][CONF_API_KEY] == "abc"
+    assert "webhook_url" in result["description_placeholders"]
+
+
+async def test_options_flow(hass: HomeAssistant) -> None:
+    """Test the options flow removes the API key and buttons."""
+    entry = await _setup(hass)
+    assert hass.states.get("button.feuerwehr_accept_alarm")
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"api_key": "", "reset_minutes": 5}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_API_KEY] == ""
+    assert entry.runtime_data.client is None
+
+
+async def test_webhook_get_and_clear(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test a GET webhook (AMweb / aPager PRO) and the clear URL."""
+    await _setup(hass)
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+
+    resp = await client.get(
+        f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "B3 Wohnung", "unit": "LZ1"}
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3 Wohnung"
+    assert hass.states.get("sensor.feuerwehr_unit").state == "LZ1"
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "1"
+    event_state = hass.states.get("event.feuerwehr_alarm_event")
+    assert event_state.attributes["event_type"] == "alarm"
+    assert len(alarms) == 1
+    assert alarms[0].data["keyword"] == "B3 Wohnung"
+
+    resp = await client.get(f"/api/webhook/{WEBHOOK_ID}?event=clear")
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert len(cleared) == 1
+
+
+async def test_webhook_post_json(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test a POST webhook with a JSON body (aPager PRO)."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    resp = await client.post(
+        f"/api/webhook/{WEBHOOK_ID}",
+        json={"keyword": "THL 1", "unit": "Florian 1", "extra": 1},
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    state = hass.states.get("binary_sensor.feuerwehr_alarm")
+    assert state.state == "on"
+    assert state.attributes["data"]["extra"] == 1
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "THL 1"
+
+
+async def test_send_feedback(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test the feedback service and buttons."""
+    await _setup(hass)
+    aioclient_mock.get(FEEDBACK_URL, status=200)
+
+    response = await hass.services.async_call(
+        DOMAIN,
+        "send_feedback",
+        {"mode": "accept", "suppress_notification": True},
+        blocking=True,
+        return_response=True,
+    )
+    assert response["results"][0]["result"] == "success"
+    _, url, _, _ = aioclient_mock.mock_calls[0]
+    assert url.query["authToken"] == "secret"
+    assert url.query["mode"] == "accept"
+    assert url.query["suppressNotification"] == "true"
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "success"
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(FEEDBACK_URL, status=204)
+    await hass.services.async_call(
+        "button", "press", {"entity_id": "button.feuerwehr_reject_alarm"}, blocking=True
+    )
+    assert aioclient_mock.mock_calls[0][1].query["mode"] == "reject"
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "no_alarm"
+
+
+async def test_send_feedback_invalid_key(hass: HomeAssistant, aioclient_mock) -> None:
+    """Test a 403 response raises an error."""
+    await _setup(hass)
+    aioclient_mock.get(FEEDBACK_URL, status=403)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True
+        )
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "invalid_api_key"
+
+
+async def test_without_api_key(hass: HomeAssistant) -> None:
+    """Test that no buttons are created without an API key."""
+    await _setup(hass, api_key="")
+    assert hass.states.get("button.feuerwehr_accept_alarm") is None
+    assert hass.states.get("binary_sensor.feuerwehr_alarm")
+
+
+async def test_unload(hass: HomeAssistant) -> None:
+    """Test unloading the entry."""
+    entry = await _setup(hass)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_auto_reset(hass: HomeAssistant, hass_client_no_auth, freezer) -> None:
+    """Test the alarm is reset automatically after the configured time."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F1"})
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+
+    freezer.tick(timedelta(minutes=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
