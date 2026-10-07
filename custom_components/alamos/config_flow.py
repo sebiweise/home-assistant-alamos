@@ -24,6 +24,8 @@ from .const import (
     CONF_KEYWORD_PARAM,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
+    CONF_TEST_KEYWORDS,
+    CONF_UNIT_FILTER,
     CONF_UNIT_PARAM,
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
@@ -40,6 +42,7 @@ PASSWORD_SELECTOR = selector.TextSelector(
 URL_SELECTOR = selector.TextSelector(
     selector.TextSelectorConfig(type=selector.TextSelectorType.URL)
 )
+LIST_SELECTOR = selector.TextSelector(selector.TextSelectorConfig(multiple=True))
 MINUTES_SELECTOR = selector.NumberSelector(
     selector.NumberSelectorConfig(
         min=0,
@@ -78,6 +81,14 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 default=options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES),
             ): MINUTES_SELECTOR,
             vol.Optional(
+                CONF_UNIT_FILTER,
+                default=options.get(CONF_UNIT_FILTER, []),
+            ): LIST_SELECTOR,
+            vol.Optional(
+                CONF_TEST_KEYWORDS,
+                default=options.get(CONF_TEST_KEYWORDS, []),
+            ): LIST_SELECTOR,
+            vol.Optional(
                 CONF_KEYWORD_PARAM,
                 default=options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM),
             ): selector.TextSelector(),
@@ -106,6 +117,10 @@ def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
         options.get(CONF_UNIT_PARAM) or DEFAULT_UNIT_PARAM
     ).strip()
     options[CONF_API_URL] = (options.get(CONF_API_URL) or DEFAULT_API_URL).strip()
+    for key in (CONF_UNIT_FILTER, CONF_TEST_KEYWORDS):
+        options[key] = [
+            item.strip() for item in options.get(key) or [] if item and item.strip()
+        ]
     return options
 
 

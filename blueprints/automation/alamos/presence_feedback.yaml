@@ -1,0 +1,107 @@
+blueprint:
+  name: Alamos – Automatische Rückmeldung nach Anwesenheit
+  description: >-
+    Meldet bei einem Alamos-Alarm automatisch zurück, abhängig davon, ob sich
+    eine Person in einer Zone befindet (z. B. zu Hause oder auf der Arbeit in
+    Wachennähe). Für jeden Fall kann „Zusage“, „Absage“ oder „Nichts tun“
+    gewählt werden.
+
+
+    Voraussetzung: Alamos-Integration mit API-Schlüssel und Smart-Home-Abo.
+  domain: automation
+  author: sebiweise
+  source_url: https://github.com/sebiweise/home-assistant-alamos/blob/master/blueprints/automation/alamos/presence_feedback.yaml
+  homeassistant:
+    min_version: "2024.11.0"
+  input:
+    alamos_entry:
+      name: Alamos-Eintrag
+      selector:
+        config_entry:
+          integration: alamos
+    person:
+      name: Person
+      selector:
+        entity:
+          filter:
+            - domain: person
+    zone:
+      name: Zone
+      default: zone.home
+      selector:
+        entity:
+          filter:
+            - domain: zone
+    mode_in_zone:
+      name: Rückmeldung in der Zone
+      default: accept
+      selector:
+        select:
+          options:
+            - label: Zusage
+              value: accept
+            - label: Absage
+              value: reject
+            - label: Nichts tun
+              value: none
+    mode_outside_zone:
+      name: Rückmeldung außerhalb der Zone
+      default: none
+      selector:
+        select:
+          options:
+            - label: Zusage
+              value: accept
+            - label: Absage
+              value: reject
+            - label: Nichts tun
+              value: none
+    delay:
+      name: Verzögerung
+      description: >-
+        Wartezeit vor der Rückmeldung, um z. B. noch manuell in der App zu
+        antworten. Muss deutlich unter 3 Minuten bleiben.
+      default: 15
+      selector:
+        number:
+          min: 0
+          max: 150
+          unit_of_measurement: s
+    ignore_test_alarms:
+      name: Probealarme ignorieren
+      default: true
+      selector:
+        boolean:
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: event
+    event_type: alamos_alarm
+    event_data:
+      config_entry_id: !input alamos_entry
+
+variables:
+  alamos_entry: !input alamos_entry
+  person_entity: !input person
+  zone_entity: !input zone
+  ignore_test: !input ignore_test_alarms
+  mode_in_zone: !input mode_in_zone
+  mode_outside_zone: !input mode_outside_zone
+  in_zone: "{{ person_entity in (state_attr(zone_entity, 'persons') or []) }}"
+  feedback_mode: "{{ mode_in_zone if in_zone else mode_outside_zone }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ not (ignore_test and trigger.event.data.test) }}"
+  - condition: template
+    value_template: "{{ feedback_mode != 'none' }}"
+
+actions:
+  - delay:
+      seconds: !input delay
+  - action: alamos.send_feedback
+    data:
+      config_entry_id: "{{ alamos_entry }}"
+      mode: "{{ feedback_mode }}"
