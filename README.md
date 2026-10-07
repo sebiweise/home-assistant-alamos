@@ -196,6 +196,7 @@ Als *Custom Repository* lässt sich die Integration sofort nutzen. Für die Aufn
 1. Repository öffentlich machen, Beschreibung und Topics (z. B. `home-assistant`, `hacs`, `alamos`) setzen
 2. Icon/Logo im Repository [home-assistant/brands](https://github.com/home-assistant/brands) für die Domain `alamos` einreichen
    und danach `ignore: brands` aus `.github/workflows/validate.yml` entfernen
-3. Für ein Release `version` in `manifest.json` erhöhen und einen passenden Tag pushen (`git tag v0.1.1 && git push origin v0.1.1`).
-   Die Action `release.yml` prüft die Version und erstellt das GitHub-Release mit `alamos.zip`.
+3. Für ein Release `version` in `custom_components/alamos/manifest.json` erhöhen und nach `master` mergen.
+   Die Action `release.yml` legt dann automatisch Tag `v<version>` und das GitHub-Release mit `alamos.zip` an
+   (manuell auslösbar über *Actions → Release → Run workflow*).
 4. PR an [hacs/default](https://github.com/hacs/default) stellen

@@ -1,12 +1,21 @@
 name: Release
 
+# Creates a GitHub release (tag v<version> + alamos.zip) whenever the version
+# in manifest.json changes on master and no release for it exists yet.
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - master
+    paths:
+      - custom_components/alamos/manifest.json
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -15,25 +24,36 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check manifest version matches tag
+      - name: Read version
+        id: version
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           version="$(jq -r .version custom_components/alamos/manifest.json)"
-          if [ "$tag" != "$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $version"
-            exit 1
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check for existing release
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release ${{ steps.version.outputs.tag }} already exists"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build zip
+        if: steps.exists.outputs.exists == 'false'
         run: |
           cd custom_components/alamos
           zip -r "$GITHUB_WORKSPACE/alamos.zip" . -x "__pycache__/*"
 
       - name: Create GitHub release
+        if: steps.exists.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" alamos.zip \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            --verify-tag
+          gh release create "${{ steps.version.outputs.tag }}" alamos.zip \
+            --target "$GITHUB_SHA" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
