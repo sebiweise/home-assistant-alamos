@@ -184,6 +184,10 @@ pytest
 ruff check custom_components tests && ruff format --check custom_components tests
 ```
 
+## Lizenz
+
+[MIT](LICENSE)
+
 ## Veröffentlichung in HACS
 
 Als *Custom Repository* lässt sich die Integration sofort nutzen. Für die Aufnahme in den HACS-Standardkatalog
@@ -192,5 +196,6 @@ Als *Custom Repository* lässt sich die Integration sofort nutzen. Für die Aufn
 1. Repository öffentlich machen, Beschreibung und Topics (z. B. `home-assistant`, `hacs`, `alamos`) setzen
 2. Icon/Logo im Repository [home-assistant/brands](https://github.com/home-assistant/brands) für die Domain `alamos` einreichen
    und danach `ignore: brands` aus `.github/workflows/validate.yml` entfernen
-3. Ein GitHub-Release erstellen (z. B. `v0.1.0`, passend zu `version` in `manifest.json`)
+3. Für ein Release `version` in `manifest.json` erhöhen und einen passenden Tag pushen (`git tag v0.1.1 && git push origin v0.1.1`).
+   Die Action `release.yml` prüft die Version und erstellt das GitHub-Release mit `alamos.zip`.
 4. PR an [hacs/default](https://github.com/hacs/default) stellen
