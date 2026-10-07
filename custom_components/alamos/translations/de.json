@@ -1,0 +1,156 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Alamos einrichten",
+        "description": "Verbindet aPager PRO / AMweb Webhooks und die Alamos Verfügbarkeits-API. Nach der Einrichtung wird eine Webhook-URL erzeugt. Der API-Schlüssel ist optional und wird nur für die Alarmrückmeldung (Zusage/Absage) benötigt.",
+        "data": {
+          "name": "Name",
+          "api_key": "API-Schlüssel (aPager PRO → Verfügbarkeit → Externer Zugriff)",
+          "suppress_notification": "Bestätigungs-Push unterdrücken",
+          "reset_minutes": "Alarm automatisch zurücksetzen nach (Minuten, 0 = nie)"
+        }
+      }
+    },
+    "create_entry": {
+      "default": "Einrichtung abgeschlossen.\n\nWebhook-URL für neue Alarme (aPager PRO „Allgemeine Webhooks“ / AMweb „neuer Alarm“):\n`{webhook_url}`\n\nWebhook-URL für „kein Alarm mehr offen“ (AMweb):\n`{webhook_clear_url}`"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alamos Optionen",
+        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für „kein Alarm mehr offen“:\n`{webhook_clear_url}`",
+        "data": {
+          "api_key": "API-Schlüssel (leer lassen, um die API zu deaktivieren)",
+          "suppress_notification": "Bestätigungs-Push unterdrücken",
+          "reset_minutes": "Alarm automatisch zurücksetzen nach (Minuten, 0 = nie)",
+          "keyword_param": "Parametername für das Stichwort",
+          "unit_param": "Parametername für die Einheit",
+          "api_url": "API-Basis-URL"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "alarm": {
+        "name": "Alarm",
+        "state_attributes": {
+          "keyword": {
+            "name": "Stichwort"
+          },
+          "unit": {
+            "name": "Einheit"
+          },
+          "source": {
+            "name": "Quelle"
+          },
+          "data": {
+            "name": "Daten"
+          }
+        }
+      }
+    },
+    "button": {
+      "feedback_accept": {
+        "name": "Alarm zusagen"
+      },
+      "feedback_reject": {
+        "name": "Alarm absagen"
+      }
+    },
+    "event": {
+      "webhook": {
+        "name": "Alarm-Ereignis",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "alarm": "Alarm",
+              "cleared": "Beendet"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "keyword": {
+        "name": "Stichwort"
+      },
+      "unit": {
+        "name": "Einheit"
+      },
+      "last_alarm": {
+        "name": "Letzter Alarm"
+      },
+      "alarm_count": {
+        "name": "Anzahl Alarme"
+      },
+      "last_feedback": {
+        "name": "Letzte Rückmeldung",
+        "state": {
+          "success": "Erfolgreich",
+          "no_alarm": "Kein Alarm in den letzten 3 Minuten",
+          "invalid_api_key": "API-Schlüssel ungültig",
+          "no_subscription": "Smart-Home-Abo fehlt",
+          "error": "Fehler"
+        }
+      }
+    }
+  },
+  "selector": {
+    "feedback_mode": {
+      "options": {
+        "accept": "Zusage (komme)",
+        "reject": "Absage (komme nicht)"
+      }
+    }
+  },
+  "services": {
+    "send_feedback": {
+      "name": "Rückmeldung senden",
+      "description": "Meldet sich über die Alamos-API auf alle Alarme der letzten 3 Minuten zurück.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos-Eintrag",
+          "description": "Zu verwendender Eintrag. Ohne Angabe werden alle Einträge mit API-Schlüssel verwendet."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "Alarm zusagen oder absagen."
+        },
+        "suppress_notification": {
+          "name": "Benachrichtigung unterdrücken",
+          "description": "Keine Bestätigungs-Push-Nachricht ans Handy senden."
+        }
+      }
+    },
+    "reset_alarm": {
+      "name": "Alarm zurücksetzen",
+      "description": "Markiert den aktuellen Alarm als beendet.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos-Eintrag",
+          "description": "Zurückzusetzender Eintrag. Ohne Angabe werden alle Einträge zurückgesetzt."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Kein geladener Alamos-Eintrag gefunden."
+    },
+    "no_api_key": {
+      "message": "Für {name} ist kein API-Schlüssel konfiguriert."
+    },
+    "invalid_api_key": {
+      "message": "Der Alamos API-Schlüssel ist ungültig (HTTP 403)."
+    },
+    "no_subscription": {
+      "message": "Smart-Home-Abo oder Lizenz fehlt (HTTP 409)."
+    },
+    "api_error": {
+      "message": "Fehler bei der Kommunikation mit der Alamos-API: {error}"
+    }
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Alamos",
+        "description": "Connect aPager PRO / AMweb webhooks and the Alamos availability API. A webhook URL is generated after setup. The API key is optional and only required for answering alarms (accept/reject).",
+        "data": {
+          "name": "Name",
+          "api_key": "API key (aPager PRO → Availability → External access)",
+          "suppress_notification": "Suppress confirmation push notification",
+          "reset_minutes": "Reset alarm automatically after (minutes, 0 = never)"
+        }
+      }
+    },
+    "create_entry": {
+      "default": "Setup complete.\n\nWebhook URL for new alarms (aPager PRO \"General webhooks\" / AMweb \"new alarm\"):\n`{webhook_url}`\n\nWebhook URL for \"no alarm open anymore\" (AMweb):\n`{webhook_clear_url}`"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alamos options",
+        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for \"no alarm open anymore\":\n`{webhook_clear_url}`",
+        "data": {
+          "api_key": "API key (leave empty to disable the API)",
+          "suppress_notification": "Suppress confirmation push notification",
+          "reset_minutes": "Reset alarm automatically after (minutes, 0 = never)",
+          "keyword_param": "Parameter name for the keyword",
+          "unit_param": "Parameter name for the unit",
+          "api_url": "API base URL"
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "alarm": {
+        "name": "Alarm",
+        "state_attributes": {
+          "keyword": {
+            "name": "Keyword"
+          },
+          "unit": {
+            "name": "Unit"
+          },
+          "source": {
+            "name": "Source"
+          },
+          "data": {
+            "name": "Data"
+          }
+        }
+      }
+    },
+    "button": {
+      "feedback_accept": {
+        "name": "Accept alarm"
+      },
+      "feedback_reject": {
+        "name": "Reject alarm"
+      }
+    },
+    "event": {
+      "webhook": {
+        "name": "Alarm event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "alarm": "Alarm",
+              "cleared": "Cleared"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "keyword": {
+        "name": "Keyword"
+      },
+      "unit": {
+        "name": "Unit"
+      },
+      "last_alarm": {
+        "name": "Last alarm"
+      },
+      "alarm_count": {
+        "name": "Alarm count"
+      },
+      "last_feedback": {
+        "name": "Last feedback",
+        "state": {
+          "success": "Success",
+          "no_alarm": "No alarm in the last 3 minutes",
+          "invalid_api_key": "Invalid API key",
+          "no_subscription": "Smart home subscription missing",
+          "error": "Error"
+        }
+      }
+    }
+  },
+  "selector": {
+    "feedback_mode": {
+      "options": {
+        "accept": "Accept (coming)",
+        "reject": "Reject (not coming)"
+      }
+    }
+  },
+  "services": {
+    "send_feedback": {
+      "name": "Send feedback",
+      "description": "Answers all alarms received within the last 3 minutes via the Alamos API.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos entry",
+          "description": "Entry to use. If omitted, all entries with an API key are used."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "Accept or reject the alarm."
+        },
+        "suppress_notification": {
+          "name": "Suppress notification",
+          "description": "Do not send the confirmation push notification to the phone."
+        }
+      }
+    },
+    "reset_alarm": {
+      "name": "Reset alarm",
+      "description": "Marks the current alarm as finished.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos entry",
+          "description": "Entry to reset. If omitted, all entries are reset."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "No loaded Alamos entry found."
+    },
+    "no_api_key": {
+      "message": "No API key configured for {name}."
+    },
+    "invalid_api_key": {
+      "message": "The Alamos API key is invalid (HTTP 403)."
+    },
+    "no_subscription": {
+      "message": "The smart home subscription or licence is missing (HTTP 409)."
+    },
+    "api_error": {
+      "message": "Error communicating with the Alamos API: {error}"
+    }
+  }
+}
