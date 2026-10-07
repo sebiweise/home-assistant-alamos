@@ -2,6 +2,9 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
 [![Validate](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
+[![GitHub Release](https://img.shields.io/github/v/release/sebiweise/home-assistant-alamos)](https://github.com/sebiweise/home-assistant-alamos/releases)
 
 Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH](https://www.alamos.gmbh)
 (aPager PRO, AMweb). Sie bringt zwei Funktionen mit:
@@ -178,25 +181,34 @@ automation:
 
 ## Entwicklung
 
+### Devcontainer (empfohlen)
+
+Das Repository enthält einen [Devcontainer](.devcontainer/devcontainer.json) für VS Code / GitHub Codespaces
+(Python 3.14, Ruff, Pytest). Nach dem Öffnen werden die Abhängigkeiten automatisch installiert.
+
+| Befehl | Zweck |
+| --- | --- |
+| `scripts/develop` | Startet eine lokale Home-Assistant-Instanz mit der Integration auf Port 8123 (Konfiguration in `config/`) |
+| `scripts/test` | Ruff (Lint + Format) und Pytest, wie in der CI |
+| `scripts/setup` | Installiert die gesperrten Abhängigkeiten aus `requirements_test.txt` |
+| `scripts/lock` | Erzeugt `requirements_test.txt` (mit Hashes) neu aus `requirements_test.in` |
+
+### Ohne Devcontainer
+
+Benötigt Python 3.14 (aktuelle Home-Assistant-Versionen setzen ≥ 3.14.2 voraus).
+
 ```bash
-pip install -r requirements_test.txt ruff
-pytest
-ruff check custom_components tests && ruff format --check custom_components tests
+scripts/setup
+scripts/test
 ```
+
+### Abhängigkeiten
+
+Die Test-Abhängigkeiten sind in `requirements_test.txt` inklusive Hashes gesperrt und werden ausschließlich
+als Wheels installiert (`--only-binary :all: --require-hashes`). Ausnahmen sind nur `mock-open` und `pyric`,
+die ausschließlich als Quellpaket veröffentlicht werden. Dependabot aktualisiert sie wöchentlich,
+ebenso die per Commit-SHA gepinnten GitHub Actions und das Devcontainer-Image.
 
 ## Lizenz
 
 [MIT](LICENSE)
-
-## Veröffentlichung in HACS
-
-Als *Custom Repository* lässt sich die Integration sofort nutzen. Für die Aufnahme in den HACS-Standardkatalog
-(siehe [HACS – Publish](https://www.hacs.xyz/docs/publish/start/)):
-
-1. Repository öffentlich machen, Beschreibung und Topics (z. B. `home-assistant`, `hacs`, `alamos`) setzen
-2. Icon/Logo im Repository [home-assistant/brands](https://github.com/home-assistant/brands) für die Domain `alamos` einreichen
-   und danach `ignore: brands` aus `.github/workflows/validate.yml` entfernen
-3. Für ein Release `version` in `custom_components/alamos/manifest.json` erhöhen und nach `master` mergen.
-   Die Action `release.yml` legt dann automatisch Tag `v<version>` und das GitHub-Release mit `alamos.zip` an
-   (manuell auslösbar über *Actions → Release → Run workflow*).
-4. PR an [hacs/default](https://github.com/hacs/default) stellen

@@ -1,0 +1,77 @@
+name: Fehler melden / Bug report
+description: Etwas funktioniert nicht wie erwartet.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für die Meldung! Bitte entferne vor dem Absenden **API-Schlüssel, Webhook-IDs und persönliche Daten** aus Logs und Payloads.
+  - type: textarea
+    id: description
+    attributes:
+      label: Beschreibung
+      description: Was ist passiert und was hast du erwartet?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Schritte zum Reproduzieren
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Betroffener Bereich
+      multiple: true
+      options:
+        - Webhook aPager PRO (GET)
+        - Webhook aPager PRO (POST)
+        - Webhook AMweb
+        - Alamos API (Alarmrückmeldung)
+        - Einrichtung / Optionen
+        - Entitäten / Services
+        - Sonstiges
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Version der Integration
+      placeholder: "0.1.2"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home-Assistant-Version
+      placeholder: "2026.10.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installationsart
+      options:
+        - Home Assistant OS
+        - Home Assistant Container
+        - Home Assistant Supervised
+        - Home Assistant Core
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Debug-Logging aktivieren unter Einstellungen → Geräte & Dienste → Alamos → „Debug-Protokollierung aktivieren“.
+      render: text
+  - type: textarea
+    id: payload
+    attributes:
+      label: Webhook-Payload (optional)
+      description: Beispielaufruf bzw. JSON-Body, z. B. aus webhook.site, ohne sensible Daten.
+      render: json

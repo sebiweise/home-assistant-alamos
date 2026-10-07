@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Alamos Handbuch (API & Webhooks)
+    url: https://alamos-support.atlassian.net/wiki/spaces/documentation/pages/2472509441/API
+    about: Offizielle Dokumentation der Alamos-Schnittstellen.
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io/
+    about: Allgemeine Fragen zu Home Assistant und Automationen.

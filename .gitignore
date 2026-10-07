@@ -4,3 +4,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+
+# Local Home Assistant development instance
+config/*
+!config/configuration.yaml
