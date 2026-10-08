@@ -5,6 +5,8 @@
 * AMweb calls the URL via GET for every new alarm and, depending on the
   setting, once no alarm is open anymore. For the latter, the URL is configured
   with ``?event=clear`` appended.
+* For a recall (Rückalarm / cancelled alarm), e.g. a second aPager PRO webhook,
+  the URL is configured with ``?event=recall`` appended.
 """
 
 from __future__ import annotations
@@ -20,6 +22,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    ATTR_DATA,
+    ATTR_KEYWORD,
+    ATTR_RECALL,
+    ATTR_UNIT,
     CONF_KEYWORD_PARAM,
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
@@ -30,6 +36,7 @@ from .const import (
     EVENT_TYPE_CLEARED,
     WEBHOOK_CLEAR_VALUES,
     WEBHOOK_EVENT_PARAM,
+    WEBHOOK_RECALL_VALUES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -89,6 +96,25 @@ def _is_test_alarm(keyword: str | None, test_keywords: list[str]) -> bool:
     return any(item.casefold() in folded for item in test_keywords)
 
 
+async def _async_read_request(request: web.Request) -> dict[str, Any] | web.Response:
+    """Read the payload or return an error response."""
+    try:
+        payload = await _async_read_payload(request)
+    except ValueError as err:
+        _LOGGER.warning("Could not parse Alamos webhook payload: %s", err)
+        return web.Response(status=400, text="invalid payload")
+    _LOGGER.debug("Alamos webhook received (%s): %s", request.method, payload)
+    return payload
+
+
+def _keyword_and_unit(
+    entry: ConfigEntry, payload: dict[str, Any]
+) -> tuple[str | None, str | None]:
+    keyword_param = entry.options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM)
+    unit_param = entry.options.get(CONF_UNIT_PARAM, DEFAULT_UNIT_PARAM)
+    return _as_text(payload.get(keyword_param)), _as_text(payload.get(unit_param))
+
+
 def async_create_webhook_handler(entry: ConfigEntry):
     """Create a webhook handler bound to a config entry."""
 
@@ -98,28 +124,35 @@ def async_create_webhook_handler(entry: ConfigEntry):
         """Handle an incoming webhook call."""
         manager = entry.runtime_data.manager
 
-        try:
-            payload = await _async_read_payload(request)
-        except ValueError as err:
-            _LOGGER.warning("Could not parse Alamos webhook payload: %s", err)
-            return web.Response(status=400, text="invalid payload")
-
-        _LOGGER.debug("Alamos webhook received (%s): %s", request.method, payload)
+        payload = await _async_read_request(request)
+        if isinstance(payload, web.Response):
+            return payload
 
         event = str(payload.pop(WEBHOOK_EVENT_PARAM, "") or "").strip().lower()
         if event in WEBHOOK_CLEAR_VALUES:
             manager.async_clear(EVENT_TYPE_CLEARED)
             return web.Response(status=200, text="cleared")
 
-        keyword_param = entry.options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM)
-        unit_param = entry.options.get(CONF_UNIT_PARAM, DEFAULT_UNIT_PARAM)
-
-        keyword = _as_text(payload.get(keyword_param))
-        unit = _as_text(payload.get(unit_param))
+        keyword, unit = _keyword_and_unit(entry, payload)
 
         if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
-            _LOGGER.debug("Ignoring alarm for unit %s (unit filter)", unit)
+            _LOGGER.debug(
+                "Ignoring %s for unit %s (unit filter)", event or "alarm", unit
+            )
             return web.Response(status=200, text="ignored")
+
+        if event in WEBHOOK_RECALL_VALUES:
+            manager.async_clear(
+                EVENT_TYPE_CLEARED,
+                {
+                    ATTR_KEYWORD: keyword,
+                    ATTR_UNIT: unit,
+                    ATTR_DATA: payload,
+                    ATTR_RECALL: True,
+                },
+                force_event=True,
+            )
+            return web.Response(status=200, text="cleared")
 
         if _is_test_alarm(keyword, entry.options.get(CONF_TEST_KEYWORDS, [])):
             manager.async_test_alarm(keyword=keyword, unit=unit, data=payload)

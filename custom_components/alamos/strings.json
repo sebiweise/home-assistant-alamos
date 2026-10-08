@@ -13,14 +13,14 @@
       }
     },
     "create_entry": {
-      "default": "Setup complete.\n\nWebhook URL for new alarms (aPager PRO \"General webhooks\" / AMweb \"new alarm\"):\n`{webhook_url}`\n\nWebhook URL for \"no alarm open anymore\" (AMweb):\n`{webhook_clear_url}`"
+      "default": "Setup complete.\n\nWebhook URL for new alarms (aPager PRO \"General webhooks\" / AMweb \"new alarm\"):\n`{webhook_url}`\n\nWebhook URL for recalls / cancelled alarms (e.g. a second aPager PRO webhook which is only sent on a recall):\n`{webhook_recall_url}`\n\nWebhook URL for \"no alarm open anymore\" (AMweb):\n`{webhook_clear_url}`"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Alamos options",
-        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for \"no alarm open anymore\":\n`{webhook_clear_url}`",
+        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for recalls / cancelled alarms:\n`{webhook_recall_url}`\n\nWebhook URL for \"no alarm open anymore\":\n`{webhook_clear_url}`",
         "data": {
           "api_key": "API key (leave empty to disable the API)",
           "suppress_notification": "Suppress confirmation push notification",
