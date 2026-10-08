@@ -160,8 +160,11 @@ def async_create_webhook_handler(entry: ConfigEntry):
 def async_create_clear_webhook_handler(entry: ConfigEntry):
     """Create the recall (Rückalarm) webhook handler bound to a config entry."""
 
-    async def async_handle_clear_webhook(
-        hass: HomeAssistant, webhook_id: str, request: web.Request
+    # Home Assistant's webhook component requires this exact handler signature.
+    async def async_handle_clear_webhook(  # NOSONAR
+        hass: HomeAssistant,  # NOSONAR
+        webhook_id: str,  # NOSONAR
+        request: web.Request,
     ) -> web.Response:
         """Clear the alarm and always report the recall."""
         payload, error = await _async_read_request(request)
