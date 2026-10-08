@@ -12,7 +12,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .api import AlamosApiClient
-from .const import EVENT_TYPE_CLEARED
+from .const import EVENT_TYPE_CLEARED, EVENT_TYPE_TEST_ALARM, FEEDBACK_WINDOW
 
 
 @dataclass(slots=True)
@@ -103,7 +103,21 @@ class AlamosAlarmManager:
         state.last_alarm = dt_util.utcnow()
         state.alarm_count += 1
         self._schedule_reset()
-        self._notify(event_type, {"keyword": keyword, "unit": unit, "data": data})
+        self._notify(event_type, _event_data(keyword, unit, data, test=False))
+
+    @callback
+    def async_test_alarm(
+        self, keyword: str | None, unit: str | None, data: dict[str, Any]
+    ) -> None:
+        """Handle a test alarm: fire events but keep the alarm state untouched."""
+        self._notify(EVENT_TYPE_TEST_ALARM, _event_data(keyword, unit, data, test=True))
+
+    @property
+    def feedback_deadline(self) -> datetime | None:
+        """Return until when the last alarm can be answered through the API."""
+        if self.state.last_alarm is None:
+            return None
+        return self.state.last_alarm + FEEDBACK_WINDOW
 
     @callback
     def async_clear(self, event_type: str) -> None:
@@ -158,3 +172,16 @@ class AlamosAlarmManager:
         if self._cancel_reset is not None:
             self._cancel_reset()
             self._cancel_reset = None
+
+
+def _event_data(
+    keyword: str | None, unit: str | None, data: dict[str, Any], *, test: bool
+) -> dict[str, Any]:
+    """Build the data passed to event listeners."""
+    return {
+        "keyword": keyword,
+        "unit": unit,
+        "data": data,
+        "test": test,
+        "feedback_deadline": (dt_util.utcnow() + FEEDBACK_WINDOW).isoformat(),
+    }

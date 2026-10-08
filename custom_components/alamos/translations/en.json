@@ -27,7 +27,14 @@
           "reset_minutes": "Reset alarm automatically after (minutes, 0 = never)",
           "keyword_param": "Parameter name for the keyword",
           "unit_param": "Parameter name for the unit",
-          "api_url": "API base URL"
+          "api_url": "API base URL",
+          "unit_filter": "Unit filter",
+          "test_keywords": "Test alarm keywords"
+        },
+        "data_description": {
+          "unit_filter": "Only process alarms of these units (case-insensitive). Empty = all. Alarms without a unit are always processed.",
+          "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
+          "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL."
         }
       }
     }
@@ -48,6 +55,9 @@
           },
           "data": {
             "name": "Data"
+          },
+          "feedback_deadline": {
+            "name": "Feedback possible until"
           }
         }
       }
@@ -67,6 +77,7 @@
           "event_type": {
             "state": {
               "alarm": "Alarm",
+              "test_alarm": "Test alarm",
               "cleared": "Cleared"
             }
           }

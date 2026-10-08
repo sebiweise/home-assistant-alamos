@@ -1,0 +1,87 @@
+blueprint:
+  name: Alamos – Licht bei Alarm
+  description: >-
+    Schaltet bei einem Alamos-Alarm die gewählten Lichter ein (z. B. Flur und
+    Treppe) und stellt nach dem Alarm oder nach einer festen Zeit den vorherigen
+    Zustand wieder her. Optional nur bei Dunkelheit.
+  domain: automation
+  author: sebiweise
+  source_url: https://github.com/sebiweise/home-assistant-alamos/blob/master/blueprints/automation/alamos/alarm_lights.yaml
+  homeassistant:
+    min_version: "2024.11.0"
+  input:
+    alarm_sensor:
+      name: Alarm-Sensor
+      selector:
+        entity:
+          filter:
+            - integration: alamos
+              domain: binary_sensor
+    lights:
+      name: Lichter
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+    brightness:
+      name: Helligkeit
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+    only_when_dark:
+      name: Nur bei Dunkelheit
+      description: Nur schalten, wenn die Sonne untergegangen ist (sun.sun).
+      default: true
+      selector:
+        boolean:
+    duration:
+      name: Maximale Dauer
+      description: Spätestens nach dieser Zeit wird der vorherige Zustand wiederhergestellt.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: min
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input alarm_sensor
+    from: "off"
+    to: "on"
+
+variables:
+  only_when_dark: !input only_when_dark
+  light_entities: !input lights
+
+conditions:
+  - condition: template
+    value_template: "{{ not only_when_dark or is_state('sun.sun', 'below_horizon') }}"
+
+actions:
+  - action: scene.create
+    data:
+      scene_id: alamos_light_snapshot
+      snapshot_entities: "{{ light_entities }}"
+  - action: light.turn_on
+    target:
+      entity_id: !input lights
+    data:
+      brightness_pct: !input brightness
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: !input alarm_sensor
+        to: "off"
+    timeout:
+      minutes: !input duration
+    continue_on_timeout: true
+  - action: scene.turn_on
+    target:
+      entity_id: scene.alamos_light_snapshot

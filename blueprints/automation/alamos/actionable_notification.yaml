@@ -1,0 +1,167 @@
+blueprint:
+  name: Alamos – Rückmeldung per Benachrichtigung
+  description: >-
+    Sendet bei einem Alamos-Alarm eine Benachrichtigung mit den Aktionen
+    „Komme“ und „Komme nicht“ an die Home Assistant Companion App. Die gewählte
+    Aktion wird über die Alamos-API zurückgemeldet und das Ergebnis in der
+    Benachrichtigung angezeigt.
+
+
+    Voraussetzungen: Alamos-Integration mit API-Schlüssel und Smart-Home-Abo,
+    Companion App (iOS/Android). Die Alamos-API akzeptiert Rückmeldungen nur
+    für Alarme der letzten 3 Minuten; danach wird die Benachrichtigung
+    automatisch als abgelaufen markiert.
+  domain: automation
+  author: sebiweise
+  source_url: https://github.com/sebiweise/home-assistant-alamos/blob/master/blueprints/automation/alamos/actionable_notification.yaml
+  homeassistant:
+    min_version: "2024.11.0"
+  input:
+    alamos_entry:
+      name: Alamos-Eintrag
+      description: Eintrag der Alamos-Integration (mit API-Schlüssel).
+      selector:
+        config_entry:
+          integration: alamos
+    notify_device:
+      name: Gerät
+      description: Smartphone mit der Home Assistant Companion App.
+      selector:
+        device:
+          filter:
+            - integration: mobile_app
+    accept_title:
+      name: Text für Zusage
+      default: "✅ Komme"
+      selector:
+        text:
+    reject_title:
+      name: Text für Absage
+      default: "❌ Komme nicht"
+      selector:
+        text:
+    critical:
+      name: Kritische Benachrichtigung
+      description: >-
+        Durchbricht „Nicht stören“ (iOS: kritische Mitteilung, Android:
+        Alarm-Kanal). Auf iOS muss die App kritische Mitteilungen dürfen.
+      default: true
+      selector:
+        boolean:
+    ignore_test_alarms:
+      name: Probealarme ignorieren
+      description: Keine Benachrichtigung bei Probealarmen (siehe Integrationsoptionen).
+      default: true
+      selector:
+        boolean:
+    suppress_alamos_push:
+      name: Alamos-Bestätigung unterdrücken
+      description: >-
+        Unterdrückt die Bestätigungs-Push-Nachricht der aPager-PRO-App, weil
+        das Ergebnis bereits in Home Assistant angezeigt wird.
+      default: true
+      selector:
+        boolean:
+
+mode: parallel
+max: 5
+
+triggers:
+  - trigger: event
+    event_type: alamos_alarm
+    event_data:
+      config_entry_id: !input alamos_entry
+
+variables:
+  alamos_entry: !input alamos_entry
+  ignore_test: !input ignore_test_alarms
+  critical: !input critical
+  suppress: !input suppress_alamos_push
+  keyword: "{{ trigger.event.data.keyword or 'Alarm' }}"
+  unit: "{{ trigger.event.data.unit or '' }}"
+  seconds_left: >-
+    {% set deadline = as_datetime(trigger.event.data.feedback_deadline) %}
+    {{ [((deadline - now()).total_seconds() | int), 0] | max if deadline else 180 }}
+  sound: >-
+    {{ {'name': 'default', 'critical': 1, 'volume': 1.0} if critical else 'default' }}
+
+conditions:
+  - condition: template
+    value_template: "{{ not (ignore_test and trigger.event.data.test) }}"
+
+actions:
+  # "context" is only available inside the action sequence.
+  - variables:
+      accept_action: "ALAMOS_ACCEPT_{{ context.id }}"
+      reject_action: "ALAMOS_REJECT_{{ context.id }}"
+      tag: "alamos_{{ context.id }}"
+
+  - domain: mobile_app
+    type: notify
+    device_id: !input notify_device
+    title: "🚨 {{ keyword }}"
+    message: >-
+      {{ unit ~ ' – ' if unit }}Rückmeldung innerhalb von {{ (seconds_left / 60) | round(0, 'ceil') | int }} Minuten möglich.
+    data:
+      tag: "{{ tag }}"
+      ttl: 0
+      priority: high
+      channel: "{{ 'alarm_stream' if critical else 'Alamos' }}"
+      push:
+        interruption-level: "{{ 'critical' if critical else 'time-sensitive' }}"
+        sound: "{{ sound }}"
+      actions:
+        - action: "{{ accept_action }}"
+          title: !input accept_title
+        - action: "{{ reject_action }}"
+          title: !input reject_title
+
+  - wait_for_trigger:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ accept_action }}"
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ reject_action }}"
+    timeout:
+      seconds: "{{ seconds_left }}"
+    continue_on_timeout: true
+
+  - if:
+      - condition: template
+        value_template: "{{ wait.trigger is none }}"
+    then:
+      - domain: mobile_app
+        type: notify
+        device_id: !input notify_device
+        title: "⏱️ {{ keyword }}"
+        message: Rückmeldezeit abgelaufen – bitte direkt in der aPager-PRO-App antworten.
+        data:
+          tag: "{{ tag }}"
+    else:
+      - variables:
+          mode: "{{ 'accept' if wait.trigger.event.data.action == accept_action else 'reject' }}"
+      - action: alamos.send_feedback
+        continue_on_error: true
+        data:
+          config_entry_id: "{{ alamos_entry }}"
+          mode: "{{ mode }}"
+          suppress_notification: "{{ suppress }}"
+        response_variable: feedback
+      - variables:
+          result: >-
+            {{ feedback.results[0].result
+               if feedback is defined and feedback.results | default([]) | count > 0
+               else 'error' }}
+      - domain: mobile_app
+        type: notify
+        device_id: !input notify_device
+        title: "{{ '✅ Zusage' if mode == 'accept' else '❌ Absage' }} – {{ keyword }}"
+        message: >-
+          {% if result == 'success' %}Rückmeldung an Alamos übermittelt.
+          {% elif result == 'no_alarm' %}Alamos hat keinen Alarm der letzten 3 Minuten gefunden.
+          {% else %}Rückmeldung fehlgeschlagen – bitte in der aPager-PRO-App antworten.{% endif %}
+        data:
+          tag: "{{ tag }}"

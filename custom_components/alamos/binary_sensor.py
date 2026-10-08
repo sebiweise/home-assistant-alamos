@@ -12,7 +12,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import AlamosConfigEntry
-from .const import ATTR_DATA, ATTR_KEYWORD, ATTR_SOURCE, ATTR_UNIT
+from .const import (
+    ATTR_DATA,
+    ATTR_FEEDBACK_DEADLINE,
+    ATTR_KEYWORD,
+    ATTR_SOURCE,
+    ATTR_UNIT,
+)
 from .entity import AlamosEntity
 
 ALARM_DESCRIPTION = BinarySensorEntityDescription(
@@ -48,4 +54,9 @@ class AlamosAlarmBinarySensor(AlamosEntity, BinarySensorEntity):
             ATTR_UNIT: state.unit,
             ATTR_SOURCE: state.source,
             ATTR_DATA: state.data,
+            ATTR_FEEDBACK_DEADLINE: (
+                deadline.isoformat()
+                if (deadline := self.manager.feedback_deadline)
+                else None
+            ),
         }
