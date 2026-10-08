@@ -37,6 +37,10 @@ DEFAULT_UNIT_PARAM: Final = "unit"
 # anymore, so the second URL gets "?event=clear" appended.
 WEBHOOK_EVENT_PARAM: Final = "event"
 WEBHOOK_CLEAR_VALUES: Final = frozenset({"clear", "reset", "end", "idle", "off"})
+# A recall (Rückalarm / cancelled alarm), e.g. sent by a second aPager PRO
+# webhook. It ends the alarm and is always reported, even without an active
+# alarm, together with the transmitted keyword and unit.
+WEBHOOK_RECALL_VALUES: Final = frozenset({"recall", "cancel"})
 
 # Events fired on the Home Assistant bus
 EVENT_ALARM: Final = "alamos_alarm"
@@ -59,4 +63,5 @@ ATTR_UNIT: Final = "unit"
 ATTR_DATA: Final = "data"
 ATTR_SOURCE: Final = "source"
 ATTR_TEST: Final = "test"
+ATTR_RECALL: Final = "recall"
 ATTR_FEEDBACK_DEADLINE: Final = "feedback_deadline"

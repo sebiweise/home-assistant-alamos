@@ -62,6 +62,9 @@ async def test_config_flow(hass: HomeAssistant) -> None:
     assert result["data"][CONF_WEBHOOK_ID]
     assert result["options"][CONF_API_KEY] == "abc"
     assert "webhook_url" in result["description_placeholders"]
+    assert result["description_placeholders"]["webhook_recall_url"].endswith(
+        "?event=recall"
+    )
 
 
 async def test_options_flow(hass: HomeAssistant) -> None:
@@ -276,3 +279,71 @@ async def test_options_flow_lists(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_UNIT_FILTER] == ["LZ1"]
     assert entry.options[CONF_TEST_KEYWORDS] == ["Probealarm"]
+
+
+async def test_webhook_recall(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """A recall ends the alarm and is always reported with its data."""
+    await _setup(hass)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+
+    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F2"})
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+
+    resp = await client.post(
+        f"/api/webhook/{WEBHOOK_ID}?event=recall", json={"keyword": "F2", "unit": "LZ1"}
+    )
+    assert resp.status == HTTPStatus.OK
+    assert await resp.text() == "cleared"
+    await hass.async_block_till_done()
+
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert len(cleared) == 1
+    assert cleared[0].data["recall"] is True
+    assert cleared[0].data["keyword"] == "F2"
+    assert cleared[0].data["unit"] == "LZ1"
+    event_state = hass.states.get("event.feuerwehr_alarm_event")
+    assert event_state.attributes["event_type"] == "cleared"
+    assert event_state.attributes["recall"] is True
+
+    # A recall is reported even if no alarm is active (anymore), and the
+    # event parameter may also be part of the JSON body.
+    resp = await client.post(f"/api/webhook/{WEBHOOK_ID}", json={"event": "cancel"})
+    assert await resp.text() == "cleared"
+    await hass.async_block_till_done()
+    assert len(cleared) == 2
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "1"
+
+    # A plain clear without an active alarm stays silent.
+    await client.get(f"/api/webhook/{WEBHOOK_ID}?event=clear")
+    await hass.async_block_till_done()
+    assert len(cleared) == 2
+
+
+async def test_webhook_recall_unit_filter(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """Recalls of other units do not end the alarm."""
+    entry = await _setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_UNIT_FILTER: ["LZ1"]}
+    )
+    await hass.async_block_till_done()
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    await client.get(url, params={"unit": "LZ1"})
+    resp = await client.get(url, params={"event": "recall", "unit": "LZ9"})
+    assert await resp.text() == "ignored"
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert not cleared
+
+    resp = await client.get(url, params={"event": "recall", "unit": "lz1"})
+    assert await resp.text() == "cleared"
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert len(cleared) == 1

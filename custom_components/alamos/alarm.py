@@ -120,13 +120,23 @@ class AlamosAlarmManager:
         return self.state.last_alarm + FEEDBACK_WINDOW
 
     @callback
-    def async_clear(self, event_type: str) -> None:
-        """Mark the alarm as finished."""
+    def async_clear(
+        self,
+        event_type: str,
+        data: dict[str, Any] | None = None,
+        *,
+        force_event: bool = False,
+    ) -> None:
+        """Mark the alarm as finished.
+
+        The event is only fired if an alarm was active, unless ``force_event``
+        is set (e.g. for an explicit recall which should always be reported).
+        """
         self._cancel_timer()
         was_active = self.state.active
         self.state.active = False
         self.state.last_cleared = dt_util.utcnow()
-        self._notify(event_type if was_active else None)
+        self._notify(event_type if was_active or force_event else None, data)
 
     @callback
     def async_feedback(self, mode: str, result: str) -> None:

@@ -62,6 +62,7 @@ def _webhook_placeholders(hass: HomeAssistant, webhook_id: str) -> dict[str, str
     return {
         "webhook_url": url,
         "webhook_clear_url": f"{url}?{WEBHOOK_EVENT_PARAM}=clear",
+        "webhook_recall_url": f"{url}?{WEBHOOK_EVENT_PARAM}=recall",
     }
 
 

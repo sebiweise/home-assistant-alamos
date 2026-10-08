@@ -13,14 +13,14 @@
       }
     },
     "create_entry": {
-      "default": "Einrichtung abgeschlossen.\n\nWebhook-URL für neue Alarme (aPager PRO „Allgemeine Webhooks“ / AMweb „neuer Alarm“):\n`{webhook_url}`\n\nWebhook-URL für „kein Alarm mehr offen“ (AMweb):\n`{webhook_clear_url}`"
+      "default": "Einrichtung abgeschlossen.\n\nWebhook-URL für neue Alarme (aPager PRO „Allgemeine Webhooks“ / AMweb „neuer Alarm“):\n`{webhook_url}`\n\nWebhook-URL für Rückalarm / Alarmabbruch (z. B. zweiter aPager-PRO-Webhook, der nur bei Rückalarm gesendet wird):\n`{webhook_recall_url}`\n\nWebhook-URL für „kein Alarm mehr offen“ (AMweb):\n`{webhook_clear_url}`"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Alamos Optionen",
-        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für „kein Alarm mehr offen“:\n`{webhook_clear_url}`",
+        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für Rückalarm / Alarmabbruch:\n`{webhook_recall_url}`\n\nWebhook-URL für „kein Alarm mehr offen“:\n`{webhook_clear_url}`",
         "data": {
           "api_key": "API-Schlüssel (leer lassen, um die API zu deaktivieren)",
           "suppress_notification": "Bestätigungs-Push unterdrücken",
