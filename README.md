@@ -1,3 +1,5 @@
+<img src="custom_components/alamos/brand/icon.png" alt="Alamos" width="96" align="right">
+
 # Alamos für Home Assistant (aPager PRO / AMweb)
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
@@ -16,6 +18,7 @@ Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH]
 
 > [!WARNING]
 > Diese Integration ist ein Community-Projekt und steht in keiner Verbindung zur Alamos GmbH.
+> Das Alamos-Logo wird mit freundlicher Genehmigung der Alamos GmbH verwendet.
 > Sie ersetzt keine zertifizierte Alarmierung. Verlasse dich im Einsatzfall nicht allein auf Home Assistant.
 
 ## Installation
@@ -30,6 +33,8 @@ Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH]
 ### Manuell
 
 Den Ordner `custom_components/alamos` nach `<config>/custom_components/alamos` kopieren und Home Assistant neu starten.
+
+Das Logo liegt in `custom_components/alamos/brand/` und wird ab Home Assistant 2026.3 angezeigt.
 
 ## Einrichtung
 
