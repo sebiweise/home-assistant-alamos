@@ -12,7 +12,6 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.alamos.const import (
     CONF_API_KEY,
-    CONF_CLEAR_WEBHOOK_ID,
     CONF_RESET_MINUTES,
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
@@ -30,7 +29,6 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
 
 WEBHOOK_ID = "test_webhook"
-CLEAR_WEBHOOK_ID = "test_clear_webhook"
 FEEDBACK_URL = f"{DEFAULT_API_URL}{FEEDBACK_PATH}"
 
 
@@ -39,9 +37,8 @@ async def _setup(hass: HomeAssistant, api_key: str = "secret") -> MockConfigEntr
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Feuerwehr",
-        data={CONF_WEBHOOK_ID: WEBHOOK_ID, CONF_CLEAR_WEBHOOK_ID: CLEAR_WEBHOOK_ID},
+        data={CONF_WEBHOOK_ID: WEBHOOK_ID},
         options={CONF_API_KEY: api_key, CONF_RESET_MINUTES: 30},
-        minor_version=2,
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -63,14 +60,11 @@ async def test_config_flow(hass: HomeAssistant) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Feuerwehr"
     assert result["data"][CONF_WEBHOOK_ID]
-    assert result["data"][CONF_CLEAR_WEBHOOK_ID]
-    assert result["data"][CONF_CLEAR_WEBHOOK_ID] != result["data"][CONF_WEBHOOK_ID]
-    placeholders = result["description_placeholders"]
-    assert placeholders["webhook_clear_url"].endswith(
-        result["data"][CONF_CLEAR_WEBHOOK_ID]
-    )
     assert result["options"][CONF_API_KEY] == "abc"
     assert "webhook_url" in result["description_placeholders"]
+    assert result["description_placeholders"]["webhook_recall_url"].endswith(
+        "?event=recall"
+    )
 
 
 async def test_options_flow(hass: HomeAssistant) -> None:
@@ -287,8 +281,8 @@ async def test_options_flow_lists(hass: HomeAssistant) -> None:
     assert entry.options[CONF_TEST_KEYWORDS] == ["Probealarm"]
 
 
-async def test_recall_webhook(hass: HomeAssistant, hass_client_no_auth) -> None:
-    """The separate recall webhook clears the alarm and reports the recall."""
+async def test_webhook_recall(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """A recall ends the alarm and is always reported with its data."""
     await _setup(hass)
     cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
     client = await hass_client_no_auth()
@@ -298,7 +292,7 @@ async def test_recall_webhook(hass: HomeAssistant, hass_client_no_auth) -> None:
     assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
 
     resp = await client.post(
-        f"/api/webhook/{CLEAR_WEBHOOK_ID}", json={"keyword": "F2", "unit": "LZ1"}
+        f"/api/webhook/{WEBHOOK_ID}?event=recall", json={"keyword": "F2", "unit": "LZ1"}
     )
     assert resp.status == HTTPStatus.OK
     assert await resp.text() == "cleared"
@@ -313,17 +307,22 @@ async def test_recall_webhook(hass: HomeAssistant, hass_client_no_auth) -> None:
     assert event_state.attributes["event_type"] == "cleared"
     assert event_state.attributes["recall"] is True
 
-    # A recall is always reported, even if no alarm is active (anymore).
-    resp = await client.get(f"/api/webhook/{CLEAR_WEBHOOK_ID}")
-    assert resp.status == HTTPStatus.OK
+    # A recall is reported even if no alarm is active (anymore), and the
+    # event parameter may also be part of the JSON body.
+    resp = await client.post(f"/api/webhook/{WEBHOOK_ID}", json={"event": "cancel"})
+    assert await resp.text() == "cleared"
     await hass.async_block_till_done()
     assert len(cleared) == 2
-    # The recall webhook never triggers an alarm.
     assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
     assert hass.states.get("sensor.feuerwehr_alarm_count").state == "1"
 
+    # A plain clear without an active alarm stays silent.
+    await client.get(f"/api/webhook/{WEBHOOK_ID}?event=clear")
+    await hass.async_block_till_done()
+    assert len(cleared) == 2
 
-async def test_recall_webhook_unit_filter(
+
+async def test_webhook_recall_unit_filter(
     hass: HomeAssistant, hass_client_no_auth
 ) -> None:
     """Recalls of other units do not end the alarm."""
@@ -334,47 +333,17 @@ async def test_recall_webhook_unit_filter(
     await hass.async_block_till_done()
     cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
     client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
 
-    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"unit": "LZ1"})
-    resp = await client.get(f"/api/webhook/{CLEAR_WEBHOOK_ID}", params={"unit": "LZ9"})
+    await client.get(url, params={"unit": "LZ1"})
+    resp = await client.get(url, params={"event": "recall", "unit": "LZ9"})
     assert await resp.text() == "ignored"
     await hass.async_block_till_done()
     assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
     assert not cleared
 
-    resp = await client.get(f"/api/webhook/{CLEAR_WEBHOOK_ID}", params={"unit": "lz1"})
+    resp = await client.get(url, params={"event": "recall", "unit": "lz1"})
     assert await resp.text() == "cleared"
     await hass.async_block_till_done()
     assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
     assert len(cleared) == 1
-
-
-async def test_migrate_adds_recall_webhook(
-    hass: HomeAssistant, hass_client_no_auth
-) -> None:
-    """Existing entries get a recall webhook on update."""
-    await async_setup_component(hass, "http", {})
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="Feuerwehr",
-        data={CONF_WEBHOOK_ID: WEBHOOK_ID},
-        options={CONF_API_KEY: "", CONF_RESET_MINUTES: 30},
-        version=1,
-        minor_version=1,
-    )
-    entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-
-    assert entry.minor_version == 2
-    assert entry.data[CONF_WEBHOOK_ID] == WEBHOOK_ID
-    clear_webhook_id = entry.data[CONF_CLEAR_WEBHOOK_ID]
-    assert clear_webhook_id and clear_webhook_id != WEBHOOK_ID
-
-    client = await hass_client_no_auth()
-    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F1"})
-    await hass.async_block_till_done()
-    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
-    await client.get(f"/api/webhook/{clear_webhook_id}")
-    await hass.async_block_till_done()
-    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"

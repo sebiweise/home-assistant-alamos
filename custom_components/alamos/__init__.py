@@ -35,7 +35,6 @@ from .const import (
     ATTR_SUPPRESS_NOTIFICATION,
     CONF_API_KEY,
     CONF_API_URL,
-    CONF_CLEAR_WEBHOOK_ID,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
     CONF_WEBHOOK_ID,
@@ -49,7 +48,7 @@ from .const import (
     SERVICE_RESET_ALARM,
     SERVICE_SEND_FEEDBACK,
 )
-from .receiver import async_create_clear_webhook_handler, async_create_webhook_handler
+from .receiver import async_create_webhook_handler
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,58 +112,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    _async_register_webhook(
-        hass,
-        entry,
-        f"Alamos {entry.title}",
-        entry.data[CONF_WEBHOOK_ID],
-        async_create_webhook_handler(entry),
-    )
-    _async_register_webhook(
-        hass,
-        entry,
-        f"Alamos {entry.title} (recall)",
-        entry.data[CONF_CLEAR_WEBHOOK_ID],
-        async_create_clear_webhook_handler(entry),
-    )
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-
-    return True
-
-
-@callback
-def _async_register_webhook(
-    hass: HomeAssistant,
-    entry: AlamosConfigEntry,
-    name: str,
-    webhook_id: str,
-    handler: Any,
-) -> None:
+    webhook_id = entry.data[CONF_WEBHOOK_ID]
     webhook.async_register(
         hass,
         DOMAIN,
-        name,
+        f"Alamos {entry.title}",
         webhook_id,
-        handler,
+        async_create_webhook_handler(entry),
         local_only=False,
         allowed_methods=["GET", "POST", "PUT"],
     )
     entry.async_on_unload(lambda: webhook.async_unregister(hass, webhook_id))
-
-
-async def async_migrate_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bool:
-    """Migrate old config entries."""
-    if entry.version > 1:
-        return False
-
-    if entry.minor_version < 2:
-        # 1.2 adds the separate recall (Rückalarm) webhook.
-        hass.config_entries.async_update_entry(
-            entry,
-            data={**entry.data, CONF_CLEAR_WEBHOOK_ID: webhook.async_generate_id()},
-            minor_version=2,
-        )
-        _LOGGER.debug("Migrated Alamos entry %s to version 1.2", entry.entry_id)
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     return True
 

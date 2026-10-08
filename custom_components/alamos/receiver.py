@@ -5,9 +5,8 @@
 * AMweb calls the URL via GET for every new alarm and, depending on the
   setting, once no alarm is open anymore. For the latter, the URL is configured
   with ``?event=clear`` appended.
-* A separate recall webhook (Rückalarm / alarm cancelled) clears the alarm on
-  every call. It can be used as a second aPager PRO webhook or as the AMweb
-  "no alarm open anymore" URL.
+* For a recall (Rückalarm / cancelled alarm), e.g. a second aPager PRO webhook,
+  the URL is configured with ``?event=recall`` appended.
 """
 
 from __future__ import annotations
@@ -37,6 +36,7 @@ from .const import (
     EVENT_TYPE_CLEARED,
     WEBHOOK_CLEAR_VALUES,
     WEBHOOK_EVENT_PARAM,
+    WEBHOOK_RECALL_VALUES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,8 +136,23 @@ def async_create_webhook_handler(entry: ConfigEntry):
         keyword, unit = _keyword_and_unit(entry, payload)
 
         if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
-            _LOGGER.debug("Ignoring alarm for unit %s (unit filter)", unit)
+            _LOGGER.debug(
+                "Ignoring %s for unit %s (unit filter)", event or "alarm", unit
+            )
             return web.Response(status=200, text="ignored")
+
+        if event in WEBHOOK_RECALL_VALUES:
+            manager.async_clear(
+                EVENT_TYPE_CLEARED,
+                {
+                    ATTR_KEYWORD: keyword,
+                    ATTR_UNIT: unit,
+                    ATTR_DATA: payload,
+                    ATTR_RECALL: True,
+                },
+                force_event=True,
+            )
+            return web.Response(status=200, text="cleared")
 
         if _is_test_alarm(keyword, entry.options.get(CONF_TEST_KEYWORDS, [])):
             manager.async_test_alarm(keyword=keyword, unit=unit, data=payload)
@@ -153,36 +168,3 @@ def async_create_webhook_handler(entry: ConfigEntry):
         return web.Response(status=200, text="ok")
 
     return async_handle_webhook
-
-
-def async_create_clear_webhook_handler(entry: ConfigEntry):
-    """Create the recall (Rückalarm) webhook handler bound to a config entry."""
-
-    async def async_handle_clear_webhook(
-        hass: HomeAssistant, webhook_id: str, request: web.Request
-    ) -> web.Response:
-        """Clear the alarm and always report the recall."""
-        payload = await _async_read_request(request)
-        if isinstance(payload, web.Response):
-            return payload
-
-        payload.pop(WEBHOOK_EVENT_PARAM, None)
-        keyword, unit = _keyword_and_unit(entry, payload)
-
-        if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
-            _LOGGER.debug("Ignoring recall for unit %s (unit filter)", unit)
-            return web.Response(status=200, text="ignored")
-
-        entry.runtime_data.manager.async_clear(
-            EVENT_TYPE_CLEARED,
-            {
-                ATTR_KEYWORD: keyword,
-                ATTR_UNIT: unit,
-                ATTR_DATA: payload,
-                ATTR_RECALL: True,
-            },
-            force_event=True,
-        )
-        return web.Response(status=200, text="cleared")
-
-    return async_handle_clear_webhook

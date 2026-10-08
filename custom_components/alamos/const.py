@@ -21,8 +21,6 @@ FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 CONF_API_KEY: Final = "api_key"
 CONF_API_URL: Final = "api_url"
 CONF_WEBHOOK_ID: Final = "webhook_id"
-# Separate webhook which only signals a recall / cancelled alarm (Rückalarm).
-CONF_CLEAR_WEBHOOK_ID: Final = "clear_webhook_id"
 CONF_SUPPRESS_NOTIFICATION: Final = "suppress_notification"
 CONF_RESET_MINUTES: Final = "reset_minutes"
 CONF_KEYWORD_PARAM: Final = "keyword_param"
@@ -39,6 +37,10 @@ DEFAULT_UNIT_PARAM: Final = "unit"
 # anymore, so the second URL gets "?event=clear" appended.
 WEBHOOK_EVENT_PARAM: Final = "event"
 WEBHOOK_CLEAR_VALUES: Final = frozenset({"clear", "reset", "end", "idle", "off"})
+# A recall (Rückalarm / cancelled alarm), e.g. sent by a second aPager PRO
+# webhook. It ends the alarm and is always reported, even without an active
+# alarm, together with the transmitted keyword and unit.
+WEBHOOK_RECALL_VALUES: Final = frozenset({"recall", "cancel"})
 
 # Events fired on the Home Assistant bus
 EVENT_ALARM: Final = "alamos_alarm"
