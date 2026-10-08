@@ -27,7 +27,14 @@
           "reset_minutes": "Alarm automatisch zurücksetzen nach (Minuten, 0 = nie)",
           "keyword_param": "Parametername für das Stichwort",
           "unit_param": "Parametername für die Einheit",
-          "api_url": "API-Basis-URL"
+          "api_url": "API-Basis-URL",
+          "unit_filter": "Einheiten-Filter",
+          "test_keywords": "Stichwörter für Probealarme"
+        },
+        "data_description": {
+          "unit_filter": "Nur Alarme dieser Einheiten verarbeiten (Groß-/Kleinschreibung egal). Leer = alle. Alarme ohne Einheit werden immer verarbeitet.",
+          "test_keywords": "Enthält das Stichwort einen dieser Begriffe (z. B. „Probealarm“), wird nur das Ereignis `test_alarm` ausgelöst; der Alarm-Sensor bleibt aus.",
+          "reset_minutes": "Für AMweb mit „kein Alarm mehr offen“-URL kann 0 gewählt werden."
         }
       }
     }
@@ -48,6 +55,9 @@
           },
           "data": {
             "name": "Daten"
+          },
+          "feedback_deadline": {
+            "name": "Rückmeldung möglich bis"
           }
         }
       }
@@ -67,6 +77,7 @@
           "event_type": {
             "state": {
               "alarm": "Alarm",
+              "test_alarm": "Probealarm",
               "cleared": "Beendet"
             }
           }

@@ -13,6 +13,8 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.alamos.const import (
     CONF_API_KEY,
     CONF_RESET_MINUTES,
+    CONF_TEST_KEYWORDS,
+    CONF_UNIT_FILTER,
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
     DOMAIN,
@@ -188,3 +190,89 @@ async def test_auto_reset(hass: HomeAssistant, hass_client_no_auth, freezer) -> 
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+
+
+async def test_unit_filter(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Alarms of other units are ignored, alarms without unit are accepted."""
+    entry = await _setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_UNIT_FILTER: ["LZ1", "lz2"]}
+    )
+    await hass.async_block_till_done()
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    client = await hass_client_no_auth()
+
+    resp = await client.get(
+        f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F1", "unit": "LZ3"}
+    )
+    assert await resp.text() == "ignored"
+    await hass.async_block_till_done()
+    assert alarms == []
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+
+    await client.get(
+        f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F1", "unit": "LZ2"}
+    )
+    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F2"})
+    await hass.async_block_till_done()
+    assert [event.data["unit"] for event in alarms] == ["LZ2", None]
+
+
+async def test_test_alarm(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test alarms fire events but do not activate the alarm sensor."""
+    entry = await _setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_TEST_KEYWORDS: ["probealarm"]}
+    )
+    await hass.async_block_till_done()
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    client = await hass_client_no_auth()
+
+    resp = await client.get(
+        f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "Probealarm Sirene"}
+    )
+    assert await resp.text() == "test"
+    await hass.async_block_till_done()
+
+    assert len(alarms) == 1
+    assert alarms[0].data["test"] is True
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "0"
+    event_state = hass.states.get("event.feuerwehr_alarm_event")
+    assert event_state.attributes["event_type"] == "test_alarm"
+
+
+async def test_feedback_deadline(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """The feedback deadline is three minutes after the alarm."""
+    freezer.move_to("2026-10-07 18:00:00+00:00")
+    await _setup(hass)
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    client = await hass_client_no_auth()
+    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "F1"})
+    await hass.async_block_till_done()
+
+    expected = "2026-10-07T18:03:00+00:00"
+    assert alarms[0].data["feedback_deadline"] == expected
+    assert alarms[0].data["test"] is False
+    state = hass.states.get("binary_sensor.feuerwehr_alarm")
+    assert state.attributes["feedback_deadline"] == expected
+
+
+async def test_options_flow_lists(hass: HomeAssistant) -> None:
+    """List options are stripped and empty items removed."""
+    entry = await _setup(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "api_key": "secret",
+            "unit_filter": [" LZ1 ", ""],
+            "test_keywords": ["Probealarm", "  "],
+        },
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_UNIT_FILTER] == ["LZ1"]
+    assert entry.options[CONF_TEST_KEYWORDS] == ["Probealarm"]

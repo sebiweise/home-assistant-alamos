@@ -21,6 +21,8 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_KEYWORD_PARAM,
+    CONF_TEST_KEYWORDS,
+    CONF_UNIT_FILTER,
     CONF_UNIT_PARAM,
     DEFAULT_KEYWORD_PARAM,
     DEFAULT_UNIT_PARAM,
@@ -68,6 +70,25 @@ def _as_text(value: Any) -> str | None:
     return text or None
 
 
+def _matches_unit_filter(unit: str | None, unit_filter: list[str]) -> bool:
+    """Return True if the alarm belongs to one of the configured units.
+
+    Alarms without a unit are always accepted so that no real alarm gets lost
+    when the unit is not transmitted.
+    """
+    if not unit_filter or unit is None:
+        return True
+    return unit.casefold() in {item.casefold() for item in unit_filter}
+
+
+def _is_test_alarm(keyword: str | None, test_keywords: list[str]) -> bool:
+    """Return True if the keyword contains one of the test alarm keywords."""
+    if not keyword or not test_keywords:
+        return False
+    folded = keyword.casefold()
+    return any(item.casefold() in folded for item in test_keywords)
+
+
 def async_create_webhook_handler(entry: ConfigEntry):
     """Create a webhook handler bound to a config entry."""
 
@@ -93,9 +114,20 @@ def async_create_webhook_handler(entry: ConfigEntry):
         keyword_param = entry.options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM)
         unit_param = entry.options.get(CONF_UNIT_PARAM, DEFAULT_UNIT_PARAM)
 
+        keyword = _as_text(payload.get(keyword_param))
+        unit = _as_text(payload.get(unit_param))
+
+        if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
+            _LOGGER.debug("Ignoring alarm for unit %s (unit filter)", unit)
+            return web.Response(status=200, text="ignored")
+
+        if _is_test_alarm(keyword, entry.options.get(CONF_TEST_KEYWORDS, [])):
+            manager.async_test_alarm(keyword=keyword, unit=unit, data=payload)
+            return web.Response(status=200, text="test")
+
         manager.async_alarm(
-            keyword=_as_text(payload.get(keyword_param)),
-            unit=_as_text(payload.get(unit_param)),
+            keyword=keyword,
+            unit=unit,
             data=payload,
             source=request.method,
             event_type=EVENT_TYPE_ALARM,

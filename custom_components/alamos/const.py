@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "alamos"
@@ -13,6 +14,8 @@ FEEDBACK_PATH: Final = "/fe2/feedback/user/external"
 FEEDBACK_MODE_ACCEPT: Final = "accept"
 FEEDBACK_MODE_REJECT: Final = "reject"
 FEEDBACK_MODES: Final = [FEEDBACK_MODE_ACCEPT, FEEDBACK_MODE_REJECT]
+# The API only answers alarms received within the last three minutes.
+FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 
 # Config entry data / options
 CONF_API_KEY: Final = "api_key"
@@ -22,6 +25,8 @@ CONF_SUPPRESS_NOTIFICATION: Final = "suppress_notification"
 CONF_RESET_MINUTES: Final = "reset_minutes"
 CONF_KEYWORD_PARAM: Final = "keyword_param"
 CONF_UNIT_PARAM: Final = "unit_param"
+CONF_UNIT_FILTER: Final = "unit_filter"
+CONF_TEST_KEYWORDS: Final = "test_keywords"
 
 DEFAULT_RESET_MINUTES: Final = 30
 DEFAULT_KEYWORD_PARAM: Final = "keyword"
@@ -40,6 +45,7 @@ EVENT_ALARM_CLEARED: Final = "alamos_alarm_cleared"
 # Event entity event types
 EVENT_TYPE_ALARM: Final = "alarm"
 EVENT_TYPE_CLEARED: Final = "cleared"
+EVENT_TYPE_TEST_ALARM: Final = "test_alarm"
 
 # Services
 SERVICE_SEND_FEEDBACK: Final = "send_feedback"
@@ -52,3 +58,5 @@ ATTR_KEYWORD: Final = "keyword"
 ATTR_UNIT: Final = "unit"
 ATTR_DATA: Final = "data"
 ATTR_SOURCE: Final = "source"
+ATTR_TEST: Final = "test"
+ATTR_FEEDBACK_DEADLINE: Final = "feedback_deadline"

@@ -9,13 +9,13 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import AlamosConfigEntry
-from .const import EVENT_TYPE_ALARM, EVENT_TYPE_CLEARED
+from .const import EVENT_TYPE_ALARM, EVENT_TYPE_CLEARED, EVENT_TYPE_TEST_ALARM
 from .entity import AlamosEntity
 
 EVENT_DESCRIPTION = EventEntityDescription(
     key="webhook",
     translation_key="webhook",
-    event_types=[EVENT_TYPE_ALARM, EVENT_TYPE_CLEARED],
+    event_types=[EVENT_TYPE_ALARM, EVENT_TYPE_TEST_ALARM, EVENT_TYPE_CLEARED],
 )
 
 

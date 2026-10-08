@@ -43,7 +43,6 @@ from .const import (
     DOMAIN,
     EVENT_ALARM,
     EVENT_ALARM_CLEARED,
-    EVENT_TYPE_ALARM,
     EVENT_TYPE_CLEARED,
     FEEDBACK_MODES,
     SERVICE_RESET_ALARM,
@@ -104,7 +103,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
     @callback
     def _fire_bus_event(event_type: str, data: dict[str, Any]) -> None:
         hass.bus.async_fire(
-            EVENT_ALARM if event_type == EVENT_TYPE_ALARM else EVENT_ALARM_CLEARED,
+            EVENT_ALARM_CLEARED if event_type == EVENT_TYPE_CLEARED else EVENT_ALARM,
             {ATTR_CONFIG_ENTRY_ID: entry.entry_id, "name": entry.title, **data},
         )
 

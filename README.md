@@ -47,6 +47,20 @@ Bei der Einrichtung werden abgefragt:
 | Bestätigungs-Push unterdrücken | Sendet `suppressNotification=true` an die API |
 | Alarm automatisch zurücksetzen | Nach wie vielen Minuten der Alarm-Sensor wieder auf „aus“ geht (0 = nie) |
 
+### Optionen
+
+Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lassen sich zusätzlich einstellen:
+
+| Option | Beschreibung |
+| --- | --- |
+| API-Schlüssel | Schlüssel ändern oder leeren (deaktiviert Buttons und Rückmelde-Service) |
+| Bestätigungs-Push unterdrücken | Standardwert für `suppress_notification` |
+| Alarm automatisch zurücksetzen | Minuten bis zum automatischen Zurücksetzen (0 = nie, z. B. bei AMweb mit „kein Alarm mehr offen“-URL) |
+| Einheiten-Filter | Nur Alarme dieser Einheiten verarbeiten, z. B. `LZ1`, `Florian Musterhausen 1/44` (Groß-/Kleinschreibung egal). Alarme ohne übermittelte Einheit werden immer verarbeitet, damit kein echter Alarm verloren geht |
+| Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
+| Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
+| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
+
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
 **Optionen** der Integration. Sie haben folgende Form:
 
@@ -106,8 +120,8 @@ Falls Alamos die Basis-URL ändert, kannst du sie in den Optionen anpassen.
 
 | Entität | Beschreibung |
 | --- | --- |
-| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `source`, `data` (alle empfangenen Parameter) |
-| `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm` und `cleared` |
+| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
+| `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
 | `sensor.<name>_unit` | Einheit des letzten Alarms |
 | `sensor.<name>_last_alarm` | Zeitpunkt des letzten Alarms |
@@ -137,51 +151,163 @@ Setzt den Alarm-Sensor zurück (optional `config_entry_id`).
 
 | Event | Daten |
 | --- | --- |
-| `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `data` |
+| `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `data`, `test` (`true` bei Probealarm), `feedback_deadline` (ISO-Zeitstempel, Alarm + 3 Minuten) |
 | `alamos_alarm_cleared` | `config_entry_id`, `name` |
 
-## Beispiel-Automationen
+## Blueprints
 
-**Licht bei Alarm einschalten und Stichwort ansagen**
+Fertige Automationen zum Importieren. Sie liegen in [`blueprints/automation/alamos`](blueprints/automation/alamos)
+und werden in der CI automatisch mit Home Assistant getestet.
+
+### Rückmeldung per Benachrichtigung
+
+[![Blueprint importieren](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fsebiweise%2Fhome-assistant-alamos%2Fblob%2Fmaster%2Fblueprints%2Fautomation%2Falamos%2Factionable_notification.yaml)
+
+Schickt bei jedem Alarm eine Benachrichtigung mit den Buttons **„✅ Komme“** und **„❌ Komme nicht“** an die
+Home Assistant Companion App. Ein Tipp auf einen Button meldet über die Alamos-API zurück; anschließend
+zeigt die Benachrichtigung das Ergebnis an (übermittelt / kein Alarm gefunden / Fehler).
+
+- Optional als **kritische Benachrichtigung**, die „Nicht stören“ durchbricht (iOS: kritische Mitteilung,
+  Android: Kanal `alarm_stream`)
+- Läuft automatisch ab, sobald die 3-Minuten-Frist der Alamos-API vorbei ist
+- Probealarme werden standardmäßig ignoriert
+- Unterdrückt auf Wunsch die doppelte Bestätigung der aPager-PRO-App
+
+> [!NOTE]
+> Benötigt einen API-Schlüssel mit aktivem Smart-Home-Abo. Für kritische Mitteilungen auf iOS muss die
+> Companion App unter *Einstellungen → Mitteilungen* kritische Mitteilungen erlauben.
+
+### Licht bei Alarm
+
+[![Blueprint importieren](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fsebiweise%2Fhome-assistant-alamos%2Fblob%2Fmaster%2Fblueprints%2Fautomation%2Falamos%2Falarm_lights.yaml)
+
+Schaltet gewählte Lichter (z. B. Flur, Treppe, Einfahrt) mit einstellbarer Helligkeit ein, optional nur bei
+Dunkelheit. Nach Alarmende oder spätestens nach der eingestellten Zeit wird der vorherige Zustand wiederhergestellt.
+
+### Automatische Rückmeldung nach Anwesenheit
+
+[![Blueprint importieren](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fsebiweise%2Fhome-assistant-alamos%2Fblob%2Fmaster%2Fblueprints%2Fautomation%2Falamos%2Fpresence_feedback.yaml)
+
+Meldet abhängig davon zurück, ob eine Person in einer Zone ist, z. B. „zu Hause → Zusage“ oder
+„Urlaub/außerhalb → Absage“. Jeder Fall kann auch auf „Nichts tun“ stehen.
+
+## Weitere Beispiel-Automationen
+
+**Stichwort per Sprachausgabe ansagen**
 
 ```yaml
 automation:
-  - alias: "Alarm: Flurlicht an"
+  - alias: "Alarm: Durchsage"
     triggers:
-      - trigger: state
-        entity_id: binary_sensor.feuerwehr_alarm
-        to: "on"
+      - trigger: event
+        event_type: alamos_alarm
+        event_data:
+          test: false
     actions:
-      - action: light.turn_on
-        target:
-          entity_id: light.flur
-        data:
-          brightness_pct: 100
       - action: tts.speak
         target:
           entity_id: tts.home_assistant_cloud
         data:
           media_player_entity_id: media_player.kueche
-          message: "Alarm: {{ state_attr('binary_sensor.feuerwehr_alarm', 'keyword') }}"
+          message: >-
+            Alarm für {{ trigger.event.data.unit or 'die Feuerwehr' }}:
+            {{ trigger.event.data.keyword }}
 ```
 
-**Automatisch zusagen, wenn ich zu Hause bin**
+**Musik und Fernseher pausieren**
 
 ```yaml
 automation:
-  - alias: "Alarm: automatisch zusagen"
+  - alias: "Alarm: Medien pausieren"
     triggers:
-      - trigger: event
-        event_type: alamos_alarm
+      - trigger: state
+        entity_id: binary_sensor.feuerwehr_alarm
+        to: "on"
+    actions:
+      - action: media_player.media_pause
+        target:
+          entity_id:
+            - media_player.wohnzimmer
+            - media_player.fernseher
+```
+
+**Probealarm nur still melden**
+
+```yaml
+automation:
+  - alias: "Probealarm protokollieren"
+    triggers:
+      - trigger: state
+        entity_id: event.feuerwehr_alarm_event
     conditions:
       - condition: state
-        entity_id: person.ich
-        state: home
+        entity_id: event.feuerwehr_alarm_event
+        attribute: event_type
+        state: test_alarm
     actions:
-      - delay: "00:00:05"
-      - action: alamos.send_feedback
+      - action: persistent_notification.create
         data:
-          mode: accept
+          title: Probealarm empfangen
+          message: "{{ state_attr('event.feuerwehr_alarm_event', 'keyword') }}"
+```
+
+**Bei Alarm nachts Rolllade im Schlafzimmer öffnen und Kaffeemaschine starten**
+
+```yaml
+automation:
+  - alias: "Alarm: nachts aufstehen"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.feuerwehr_alarm
+        to: "on"
+    conditions:
+      - condition: time
+        after: "22:00:00"
+        before: "06:00:00"
+    actions:
+      - action: cover.open_cover
+        target:
+          entity_id: cover.schlafzimmer
+      - action: switch.turn_on
+        target:
+          entity_id: switch.kaffeemaschine
+```
+
+**Garagentor öffnen, wenn ich zugesagt habe**
+
+```yaml
+automation:
+  - alias: "Alarm: Garage nach Zusage öffnen"
+    triggers:
+      - trigger: state
+        entity_id: sensor.feuerwehr_last_feedback
+        to: success
+    conditions:
+      - condition: template
+        value_template: "{{ state_attr('sensor.feuerwehr_last_feedback', 'mode') == 'accept' }}"
+      - condition: state
+        entity_id: binary_sensor.feuerwehr_alarm
+        state: "on"
+    actions:
+      - action: cover.open_cover
+        target:
+          entity_id: cover.garage
+```
+
+**Alarm am Dashboard anzeigen** (Markdown-Karte, nur sichtbar während eines Alarms)
+
+```yaml
+type: markdown
+visibility:
+  - condition: state
+    entity: binary_sensor.feuerwehr_alarm
+    state: "on"
+content: >-
+  ## 🚨 {{ state_attr('binary_sensor.feuerwehr_alarm', 'keyword') }}
+
+  **Einheit:** {{ state_attr('binary_sensor.feuerwehr_alarm', 'unit') or '–' }}
+
+  **Alarmiert:** {{ states('sensor.feuerwehr_last_alarm') | as_timestamp | timestamp_custom('%H:%M') }} Uhr
 ```
 
 ## Entwicklung
