@@ -96,17 +96,15 @@ def _is_test_alarm(keyword: str | None, test_keywords: list[str]) -> bool:
     return any(item.casefold() in folded for item in test_keywords)
 
 
-async def _async_read_request(
-    request: web.Request,
-) -> tuple[dict[str, Any] | None, web.Response | None]:
+async def _async_read_request(request: web.Request) -> dict[str, Any] | web.Response:
     """Read the payload or return an error response."""
     try:
         payload = await _async_read_payload(request)
     except ValueError as err:
         _LOGGER.warning("Could not parse Alamos webhook payload: %s", err)
-        return None, web.Response(status=400, text="invalid payload")
+        return web.Response(status=400, text="invalid payload")
     _LOGGER.debug("Alamos webhook received (%s): %s", request.method, payload)
-    return payload, None
+    return payload
 
 
 def _keyword_and_unit(
@@ -126,9 +124,9 @@ def async_create_webhook_handler(entry: ConfigEntry):
         """Handle an incoming webhook call."""
         manager = entry.runtime_data.manager
 
-        payload, error = await _async_read_request(request)
-        if payload is None:
-            return error
+        payload = await _async_read_request(request)
+        if isinstance(payload, web.Response):
+            return payload
 
         event = str(payload.pop(WEBHOOK_EVENT_PARAM, "") or "").strip().lower()
         if event in WEBHOOK_CLEAR_VALUES:
@@ -160,16 +158,13 @@ def async_create_webhook_handler(entry: ConfigEntry):
 def async_create_clear_webhook_handler(entry: ConfigEntry):
     """Create the recall (Rückalarm) webhook handler bound to a config entry."""
 
-    # Home Assistant's webhook component requires this exact handler signature.
-    async def async_handle_clear_webhook(  # NOSONAR
-        hass: HomeAssistant,  # NOSONAR
-        webhook_id: str,  # NOSONAR
-        request: web.Request,
+    async def async_handle_clear_webhook(
+        hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
         """Clear the alarm and always report the recall."""
-        payload, error = await _async_read_request(request)
-        if payload is None:
-            return error
+        payload = await _async_read_request(request)
+        if isinstance(payload, web.Response):
+            return payload
 
         payload.pop(WEBHOOK_EVENT_PARAM, None)
         keyword, unit = _keyword_and_unit(entry, payload)
