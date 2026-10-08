@@ -5,6 +5,9 @@
 * AMweb calls the URL via GET for every new alarm and, depending on the
   setting, once no alarm is open anymore. For the latter, the URL is configured
   with ``?event=clear`` appended.
+* A separate recall webhook (Rückalarm / alarm cancelled) clears the alarm on
+  every call. It can be used as a second aPager PRO webhook or as the AMweb
+  "no alarm open anymore" URL.
 """
 
 from __future__ import annotations
@@ -20,6 +23,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    ATTR_DATA,
+    ATTR_KEYWORD,
+    ATTR_RECALL,
+    ATTR_UNIT,
     CONF_KEYWORD_PARAM,
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
@@ -89,6 +96,27 @@ def _is_test_alarm(keyword: str | None, test_keywords: list[str]) -> bool:
     return any(item.casefold() in folded for item in test_keywords)
 
 
+async def _async_read_request(
+    request: web.Request,
+) -> tuple[dict[str, Any] | None, web.Response | None]:
+    """Read the payload or return an error response."""
+    try:
+        payload = await _async_read_payload(request)
+    except ValueError as err:
+        _LOGGER.warning("Could not parse Alamos webhook payload: %s", err)
+        return None, web.Response(status=400, text="invalid payload")
+    _LOGGER.debug("Alamos webhook received (%s): %s", request.method, payload)
+    return payload, None
+
+
+def _keyword_and_unit(
+    entry: ConfigEntry, payload: dict[str, Any]
+) -> tuple[str | None, str | None]:
+    keyword_param = entry.options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM)
+    unit_param = entry.options.get(CONF_UNIT_PARAM, DEFAULT_UNIT_PARAM)
+    return _as_text(payload.get(keyword_param)), _as_text(payload.get(unit_param))
+
+
 def async_create_webhook_handler(entry: ConfigEntry):
     """Create a webhook handler bound to a config entry."""
 
@@ -98,24 +126,16 @@ def async_create_webhook_handler(entry: ConfigEntry):
         """Handle an incoming webhook call."""
         manager = entry.runtime_data.manager
 
-        try:
-            payload = await _async_read_payload(request)
-        except ValueError as err:
-            _LOGGER.warning("Could not parse Alamos webhook payload: %s", err)
-            return web.Response(status=400, text="invalid payload")
-
-        _LOGGER.debug("Alamos webhook received (%s): %s", request.method, payload)
+        payload, error = await _async_read_request(request)
+        if payload is None:
+            return error
 
         event = str(payload.pop(WEBHOOK_EVENT_PARAM, "") or "").strip().lower()
         if event in WEBHOOK_CLEAR_VALUES:
             manager.async_clear(EVENT_TYPE_CLEARED)
             return web.Response(status=200, text="cleared")
 
-        keyword_param = entry.options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM)
-        unit_param = entry.options.get(CONF_UNIT_PARAM, DEFAULT_UNIT_PARAM)
-
-        keyword = _as_text(payload.get(keyword_param))
-        unit = _as_text(payload.get(unit_param))
+        keyword, unit = _keyword_and_unit(entry, payload)
 
         if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
             _LOGGER.debug("Ignoring alarm for unit %s (unit filter)", unit)
@@ -135,3 +155,36 @@ def async_create_webhook_handler(entry: ConfigEntry):
         return web.Response(status=200, text="ok")
 
     return async_handle_webhook
+
+
+def async_create_clear_webhook_handler(entry: ConfigEntry):
+    """Create the recall (Rückalarm) webhook handler bound to a config entry."""
+
+    async def async_handle_clear_webhook(
+        hass: HomeAssistant, webhook_id: str, request: web.Request
+    ) -> web.Response:
+        """Clear the alarm and always report the recall."""
+        payload, error = await _async_read_request(request)
+        if payload is None:
+            return error
+
+        payload.pop(WEBHOOK_EVENT_PARAM, None)
+        keyword, unit = _keyword_and_unit(entry, payload)
+
+        if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
+            _LOGGER.debug("Ignoring recall for unit %s (unit filter)", unit)
+            return web.Response(status=200, text="ignored")
+
+        entry.runtime_data.manager.async_clear(
+            EVENT_TYPE_CLEARED,
+            {
+                ATTR_KEYWORD: keyword,
+                ATTR_UNIT: unit,
+                ATTR_DATA: payload,
+                ATTR_RECALL: True,
+            },
+            force_event=True,
+        )
+        return web.Response(status=200, text="cleared")
+
+    return async_handle_clear_webhook

@@ -13,14 +13,14 @@
       }
     },
     "create_entry": {
-      "default": "Setup complete.\n\nWebhook URL for new alarms (aPager PRO \"General webhooks\" / AMweb \"new alarm\"):\n`{webhook_url}`\n\nWebhook URL for \"no alarm open anymore\" (AMweb):\n`{webhook_clear_url}`"
+      "default": "Setup complete.\n\nWebhook URL for new alarms (aPager PRO \"General webhooks\" / AMweb \"new alarm\"):\n`{webhook_url}`\n\nWebhook URL for recalls / cancelled alarms (second aPager PRO webhook, only sent on a recall / AMweb \"no alarm open anymore\"):\n`{webhook_clear_url}`"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Alamos options",
-        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for \"no alarm open anymore\":\n`{webhook_clear_url}`",
+        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for recalls / cancelled alarms (every call ends the alarm):\n`{webhook_clear_url}`\n\nStill supported: `{webhook_event_clear_url}`",
         "data": {
           "api_key": "API key (leave empty to disable the API)",
           "suppress_notification": "Suppress confirmation push notification",
@@ -34,7 +34,7 @@
         "data_description": {
           "unit_filter": "Only process alarms of these units (case-insensitive). Empty = all. Alarms without a unit are always processed.",
           "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
-          "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL."
+          "reset_minutes": "Use 0 if the recall webhook is called reliably (e.g. AMweb \"no alarm open anymore\")."
         }
       }
     }

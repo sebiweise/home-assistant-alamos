@@ -60,9 +60,17 @@ Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie 
 **Optionen** der Integration. Sie haben folgende Form:
 
 ```
-https://<deine-ha-url>/api/webhook/<webhook_id>              # neuer Alarm
-https://<deine-ha-url>/api/webhook/<webhook_id>?event=clear  # kein Alarm mehr offen
+https://<deine-ha-url>/api/webhook/<webhook_id>         # neuer Alarm
+https://<deine-ha-url>/api/webhook/<clear_webhook_id>   # Rückalarm / Alarmabbruch
 ```
+
+Der **Rückalarm-Webhook** hat eine eigene ID. Jeder Aufruf beendet den Alarm und löst `alamos_alarm_cleared`
+mit `recall: true` aus, auch wenn gerade kein Alarm aktiv ist. Stichwort, Einheit und alle übrigen Parameter
+werden wie beim Alarm-Webhook gelesen und im Event mitgeliefert. Ist ein Einheiten-Filter gesetzt, beendet ein
+Rückalarm einer fremden Einheit den Alarm nicht. Bestehende Einträge bekommen die zweite URL beim Update
+automatisch; sie steht in den Optionen der Integration.
+
+Die bisherige Variante `https://<deine-ha-url>/api/webhook/<webhook_id>?event=clear` funktioniert weiterhin.
 
 > [!IMPORTANT]
 > Die URL muss von außen per **HTTPS** erreichbar sein, etwa über Home Assistant Cloud (Nabu Casa) oder einen Reverse Proxy.
@@ -79,14 +87,19 @@ In der App unter **Einstellungen → Smart Home → Webhooks** (Smart-Home-Abo e
 
 Der aPager PRO löst Webhooks nur bei echten Alarmen aus (Reiter „Alarm“), nicht bei Info-, Unwetter- oder Statusalarmen.
 
+Für Rückalarme/Alarmabbrüche legst du einen **zweiten Webhook** mit der Rückalarm-URL an und lässt ihn nur bei einem
+Rückalarm auslösen. Ob und wie die App einen Webhook auf Rückalarme beschränken kann, hängt von deiner
+aPager-PRO-Version und Konfiguration ab (nicht anhand der Alamos-Doku geprüft).
+
 ### AMweb – Webhooks
 
 AMweb ruft die hinterlegten URLs per `GET` auf:
 
 - **Neuer Alarm** → `https://<deine-ha-url>/api/webhook/<webhook_id>`
-- **Kein Alarm mehr offen** → `https://<deine-ha-url>/api/webhook/<webhook_id>?event=clear`
+- **Kein Alarm mehr offen** → die Rückalarm-URL `https://<deine-ha-url>/api/webhook/<clear_webhook_id>`
 
-Statt `event=clear` werden auch `reset`, `end`, `idle` und `off` akzeptiert.
+Alternativ geht weiterhin `https://<deine-ha-url>/api/webhook/<webhook_id>?event=clear`; statt `clear` werden auch
+`reset`, `end`, `idle` und `off` akzeptiert.
 
 ### Alamos API – Alarmrückmeldung
 
@@ -116,7 +129,7 @@ Falls Alamos die Basis-URL ändert, kannst du sie in den Optionen anpassen.
 | Entität | Beschreibung |
 | --- | --- |
 | `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
-| `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` |
+| `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (beim Rückalarm-Webhook mit `recall: true`, `keyword`, `unit`, `data`) |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
 | `sensor.<name>_unit` | Einheit des letzten Alarms |
 | `sensor.<name>_last_alarm` | Zeitpunkt des letzten Alarms |
@@ -147,7 +160,7 @@ Setzt den Alarm-Sensor zurück (optional `config_entry_id`).
 | Event | Daten |
 | --- | --- |
 | `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `data`, `test` (`true` bei Probealarm), `feedback_deadline` (ISO-Zeitstempel, Alarm + 3 Minuten) |
-| `alamos_alarm_cleared` | `config_entry_id`, `name` |
+| `alamos_alarm_cleared` | `config_entry_id`, `name`; beim Rückalarm-Webhook zusätzlich `recall: true`, `keyword`, `unit`, `data` |
 
 ## Blueprints
 
@@ -207,6 +220,25 @@ automation:
           message: >-
             Alarm für {{ trigger.event.data.unit or 'die Feuerwehr' }}:
             {{ trigger.event.data.keyword }}
+```
+
+**Bei Rückalarm benachrichtigen**
+
+```yaml
+automation:
+  - alias: "Rückalarm: Benachrichtigung"
+    triggers:
+      - trigger: event
+        event_type: alamos_alarm_cleared
+        event_data:
+          recall: true
+    actions:
+      - action: notify.mobile_app_mein_handy
+        data:
+          title: "Rückalarm"
+          message: >-
+            Einsatz abgebrochen{{ ': ' ~ trigger.event.data.keyword
+            if trigger.event.data.keyword else '' }}
 ```
 
 **Musik und Fernseher pausieren**

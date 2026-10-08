@@ -21,6 +21,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_CLEAR_WEBHOOK_ID,
     CONF_KEYWORD_PARAM,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
@@ -54,14 +55,19 @@ MINUTES_SELECTOR = selector.NumberSelector(
 )
 
 
-def _webhook_placeholders(hass: HomeAssistant, webhook_id: str) -> dict[str, str]:
+def _webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
     try:
-        url = webhook.async_generate_url(hass, webhook_id)
+        return webhook.async_generate_url(hass, webhook_id)
     except HomeAssistantError:  # no external/internal URL configured yet
-        url = webhook.async_generate_path(webhook_id)
+        return webhook.async_generate_path(webhook_id)
+
+
+def _webhook_placeholders(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, str]:
+    url = _webhook_url(hass, data[CONF_WEBHOOK_ID])
     return {
         "webhook_url": url,
-        "webhook_clear_url": f"{url}?{WEBHOOK_EVENT_PARAM}=clear",
+        "webhook_clear_url": _webhook_url(hass, data[CONF_CLEAR_WEBHOOK_ID]),
+        "webhook_event_clear_url": f"{url}?{WEBHOOK_EVENT_PARAM}=clear",
     }
 
 
@@ -128,23 +134,27 @@ class AlamosConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Alamos."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the flow."""
-        self._webhook_id: str | None = None
+        self._data: dict[str, str] | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle the initial step."""
-        if self._webhook_id is None:
-            self._webhook_id = webhook.async_generate_id()
+        if self._data is None:
+            self._data = {
+                CONF_WEBHOOK_ID: webhook.async_generate_id(),
+                CONF_CLEAR_WEBHOOK_ID: webhook.async_generate_id(),
+            }
 
         if user_input is not None:
             title = user_input.pop(CONF_NAME).strip() or "Alamos"
             return self.async_create_entry(
                 title=title,
-                data={CONF_WEBHOOK_ID: self._webhook_id},
+                data=self._data,
                 options=_clean_options(
                     {
                         CONF_API_KEY: user_input.get(CONF_API_KEY),
@@ -156,9 +166,7 @@ class AlamosConfigFlow(ConfigFlow, domain=DOMAIN):
                         ),
                     }
                 ),
-                description_placeholders=_webhook_placeholders(
-                    self.hass, self._webhook_id
-                ),
+                description_placeholders=_webhook_placeholders(self.hass, self._data),
             )
 
         return self.async_show_form(
@@ -198,6 +206,6 @@ class AlamosOptionsFlow(OptionsFlow):
             step_id="init",
             data_schema=_options_schema(dict(self.config_entry.options)),
             description_placeholders=_webhook_placeholders(
-                self.hass, self.config_entry.data[CONF_WEBHOOK_ID]
+                self.hass, dict(self.config_entry.data)
             ),
         )

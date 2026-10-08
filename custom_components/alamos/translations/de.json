@@ -13,14 +13,14 @@
       }
     },
     "create_entry": {
-      "default": "Einrichtung abgeschlossen.\n\nWebhook-URL für neue Alarme (aPager PRO „Allgemeine Webhooks“ / AMweb „neuer Alarm“):\n`{webhook_url}`\n\nWebhook-URL für „kein Alarm mehr offen“ (AMweb):\n`{webhook_clear_url}`"
+      "default": "Einrichtung abgeschlossen.\n\nWebhook-URL für neue Alarme (aPager PRO „Allgemeine Webhooks“ / AMweb „neuer Alarm“):\n`{webhook_url}`\n\nWebhook-URL für Rückalarm / Alarmabbruch (zweiter aPager-PRO-Webhook, nur bei Rückalarm senden / AMweb „kein Alarm mehr offen“):\n`{webhook_clear_url}`"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Alamos Optionen",
-        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für „kein Alarm mehr offen“:\n`{webhook_clear_url}`",
+        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für Rückalarm / Alarmabbruch (jeder Aufruf beendet den Alarm):\n`{webhook_clear_url}`\n\nWeiterhin unterstützt: `{webhook_event_clear_url}`",
         "data": {
           "api_key": "API-Schlüssel (leer lassen, um die API zu deaktivieren)",
           "suppress_notification": "Bestätigungs-Push unterdrücken",
@@ -34,7 +34,7 @@
         "data_description": {
           "unit_filter": "Nur Alarme dieser Einheiten verarbeiten (Groß-/Kleinschreibung egal). Leer = alle. Alarme ohne Einheit werden immer verarbeitet.",
           "test_keywords": "Enthält das Stichwort einen dieser Begriffe (z. B. „Probealarm“), wird nur das Ereignis `test_alarm` ausgelöst; der Alarm-Sensor bleibt aus.",
-          "reset_minutes": "Für AMweb mit „kein Alarm mehr offen“-URL kann 0 gewählt werden."
+          "reset_minutes": "Wenn der Rückalarm-Webhook zuverlässig aufgerufen wird (z. B. AMweb „kein Alarm mehr offen“), kann 0 gewählt werden."
         }
       }
     }
