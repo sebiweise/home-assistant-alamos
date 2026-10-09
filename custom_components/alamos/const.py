@@ -16,6 +16,9 @@ FEEDBACK_MODE_REJECT: Final = "reject"
 FEEDBACK_MODES: Final = [FEEDBACK_MODE_ACCEPT, FEEDBACK_MODE_REJECT]
 # The API only answers alarms received within the last three minutes.
 FEEDBACK_WINDOW: Final = timedelta(minutes=3)
+# aPager PRO Android (6.9.0+) calls the webhook once per alarmed unit. Webhooks
+# with the same keyword arriving within this window belong to the same alarm.
+MERGE_WINDOW: Final = timedelta(seconds=30)
 
 # Config entry data / options
 CONF_API_KEY: Final = "api_key"
@@ -60,6 +63,7 @@ ATTR_SUPPRESS_NOTIFICATION: Final = "suppress_notification"
 
 ATTR_KEYWORD: Final = "keyword"
 ATTR_UNIT: Final = "unit"
+ATTR_UNITS: Final = "units"
 ATTR_DATA: Final = "data"
 ATTR_SOURCE: Final = "source"
 ATTR_TEST: Final = "test"

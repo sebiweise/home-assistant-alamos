@@ -12,7 +12,12 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .api import AlamosApiClient
-from .const import EVENT_TYPE_CLEARED, EVENT_TYPE_TEST_ALARM, FEEDBACK_WINDOW
+from .const import (
+    EVENT_TYPE_CLEARED,
+    EVENT_TYPE_TEST_ALARM,
+    FEEDBACK_WINDOW,
+    MERGE_WINDOW,
+)
 
 
 @dataclass(slots=True)
@@ -39,6 +44,7 @@ class AlarmState:
     active: bool = False
     keyword: str | None = None
     unit: str | None = None
+    units: list[str] = field(default_factory=list)
     data: dict[str, Any] = field(default_factory=dict)
     source: str | None = None
     last_alarm: datetime | None = None
@@ -58,6 +64,9 @@ class AlamosAlarmManager:
         self._listeners: list[Callable[[], None]] = []
         self._event_listeners: list[Callable[[str, dict[str, Any]], None]] = []
         self._cancel_reset: CALLBACK_TYPE | None = None
+        # Last test alarm / recall per kind, to drop the repeated webhooks
+        # aPager PRO sends for every alarmed unit.
+        self._recent: dict[str, tuple[datetime, str | None]] = {}
 
     @callback
     def async_add_listener(self, update_callback: Callable[[], None]) -> CALLBACK_TYPE:
@@ -92,25 +101,72 @@ class AlamosAlarmManager:
         data: dict[str, Any],
         source: str,
         event_type: str,
-    ) -> None:
-        """Handle a new alarm."""
+    ) -> bool:
+        """Handle a new alarm.
+
+        Returns False if the webhook was merged into the active alarm because
+        aPager PRO sent it for another unit of the same alarm.
+        """
         state = self.state
+        now = dt_util.utcnow()
+        if (
+            state.active
+            and state.last_alarm is not None
+            and now - state.last_alarm <= MERGE_WINDOW
+            and _same_keyword(state.keyword, keyword)
+        ):
+            if unit and unit not in state.units:
+                state.units.append(unit)
+            state.unit = state.unit or unit
+            self._notify()
+            return False
+
         state.active = True
         state.keyword = keyword
         state.unit = unit
+        state.units = [unit] if unit else []
         state.data = data
         state.source = source
-        state.last_alarm = dt_util.utcnow()
+        state.last_alarm = now
         state.alarm_count += 1
         self._schedule_reset()
         self._notify(event_type, _event_data(keyword, unit, data, test=False))
+        return True
 
     @callback
     def async_test_alarm(
         self, keyword: str | None, unit: str | None, data: dict[str, Any]
-    ) -> None:
-        """Handle a test alarm: fire events but keep the alarm state untouched."""
+    ) -> bool:
+        """Handle a test alarm: fire events but keep the alarm state untouched.
+
+        Returns False if it repeats the last test alarm (another unit).
+        """
+        if self._is_repeat(EVENT_TYPE_TEST_ALARM, keyword):
+            return False
         self._notify(EVENT_TYPE_TEST_ALARM, _event_data(keyword, unit, data, test=True))
+        return True
+
+    @callback
+    def async_recall(self, data: dict[str, Any]) -> bool:
+        """Handle a recall: end the alarm and always report it.
+
+        Returns False if it repeats the last recall (another unit).
+        """
+        if self._is_repeat("recall", data.get("keyword")):
+            return False
+        self.async_clear(EVENT_TYPE_CLEARED, data, force_event=True)
+        return True
+
+    @callback
+    def _is_repeat(self, kind: str, keyword: str | None) -> bool:
+        now = dt_util.utcnow()
+        last = self._recent.get(kind)
+        self._recent[kind] = (now, keyword)
+        return (
+            last is not None
+            and now - last[0] <= MERGE_WINDOW
+            and _same_keyword(last[1], keyword)
+        )
 
     @property
     def feedback_deadline(self) -> datetime | None:
@@ -184,6 +240,13 @@ class AlamosAlarmManager:
             self._cancel_reset = None
 
 
+def _same_keyword(first: str | None, second: str | None) -> bool:
+    """Return True if two keywords are equal (case-insensitive)."""
+    if first is None or second is None:
+        return first is second
+    return first.casefold() == second.casefold()
+
+
 def _event_data(
     keyword: str | None, unit: str | None, data: dict[str, Any], *, test: bool
 ) -> dict[str, Any]:
@@ -191,6 +254,7 @@ def _event_data(
     return {
         "keyword": keyword,
         "unit": unit,
+        "units": [unit] if unit else [],
         "data": data,
         "test": test,
         "feedback_deadline": (dt_util.utcnow() + FEEDBACK_WINDOW).isoformat(),

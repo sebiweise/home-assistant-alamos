@@ -142,29 +142,29 @@ def async_create_webhook_handler(entry: ConfigEntry):
             return web.Response(status=200, text="ignored")
 
         if event in WEBHOOK_RECALL_VALUES:
-            manager.async_clear(
-                EVENT_TYPE_CLEARED,
+            reported = manager.async_recall(
                 {
                     ATTR_KEYWORD: keyword,
                     ATTR_UNIT: unit,
                     ATTR_DATA: payload,
                     ATTR_RECALL: True,
-                },
-                force_event=True,
+                }
             )
-            return web.Response(status=200, text="cleared")
+            return web.Response(status=200, text="cleared" if reported else "merged")
 
         if _is_test_alarm(keyword, entry.options.get(CONF_TEST_KEYWORDS, [])):
-            manager.async_test_alarm(keyword=keyword, unit=unit, data=payload)
-            return web.Response(status=200, text="test")
+            reported = manager.async_test_alarm(
+                keyword=keyword, unit=unit, data=payload
+            )
+            return web.Response(status=200, text="test" if reported else "merged")
 
-        manager.async_alarm(
+        new_alarm = manager.async_alarm(
             keyword=keyword,
             unit=unit,
             data=payload,
             source=request.method,
             event_type=EVENT_TYPE_ALARM,
         )
-        return web.Response(status=200, text="ok")
+        return web.Response(status=200, text="ok" if new_alarm else "merged")
 
     return async_handle_webhook
