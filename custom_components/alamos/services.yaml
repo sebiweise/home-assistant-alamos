@@ -25,3 +25,141 @@ reset_alarm:
       selector:
         config_entry:
           integration: alamos
+fe2_send_alarm:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: alamos
+    keyword:
+      required: false
+      example: BMA
+      selector:
+        text:
+    keyword_description:
+      required: false
+      example: Brandmeldeanlage
+      selector:
+        text:
+    message:
+      required: false
+      selector:
+        text:
+          multiline: true
+    units:
+      required: false
+      selector:
+        text:
+          multiple: true
+    external_id:
+      required: false
+      selector:
+        text:
+    location:
+      collapsed: true
+      fields:
+        street:
+          required: false
+          selector:
+            text:
+        house:
+          required: false
+          selector:
+            text:
+        postal_code:
+          required: false
+          selector:
+            text:
+        city:
+          required: false
+          selector:
+            text:
+        building:
+          required: false
+          selector:
+            text:
+        latitude:
+          required: false
+          selector:
+            number:
+              min: -90
+              max: 90
+              step: any
+              mode: box
+        longitude:
+          required: false
+          selector:
+            number:
+              min: -180
+              max: 180
+              step: any
+              mode: box
+    caller:
+      collapsed: true
+      fields:
+        caller_name:
+          required: false
+          selector:
+            text:
+        caller_contact:
+          required: false
+          selector:
+            text:
+        custom:
+          required: false
+          selector:
+            object:
+fe2_close_alarm:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: alamos
+    external_id:
+      required: true
+      selector:
+        text:
+fe2_send_status:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: alamos
+    status:
+      required: true
+      example: "2"
+      selector:
+        text:
+    event:
+      required: false
+      example: Wache an
+      selector:
+        text:
+    address:
+      required: false
+      selector:
+        text:
+    radio_name:
+      required: false
+      example: LF 40/1
+      selector:
+        text:
+    latitude:
+      required: false
+      selector:
+        number:
+          min: -90
+          max: 90
+          step: any
+          mode: box
+    longitude:
+      required: false
+      selector:
+        number:
+          min: -180
+          max: 180
+          step: any
+          mode: box

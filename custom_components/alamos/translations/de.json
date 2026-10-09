@@ -29,12 +29,18 @@
           "unit_param": "Parametername für die Einheit",
           "api_url": "API-Basis-URL",
           "unit_filter": "Einheiten-Filter",
-          "test_keywords": "Stichwörter für Probealarme"
+          "test_keywords": "Stichwörter für Probealarme",
+          "fe2_url": "FE2-URL (externe Schnittstelle)",
+          "fe2_sender": "FE2-Absender",
+          "fe2_authorization": "FE2-Autorisierung (Shared Secret)"
         },
         "data_description": {
           "unit_filter": "Nur Alarme dieser Einheiten verarbeiten (Groß-/Kleinschreibung egal). Leer = alle. Alarme ohne Einheit werden immer verarbeitet.",
           "test_keywords": "Enthält das Stichwort einen dieser Begriffe (z. B. „Probealarm“), wird nur das Ereignis `test_alarm` ausgelöst; der Alarm-Sensor bleibt aus.",
-          "reset_minutes": "Für AMweb mit „kein Alarm mehr offen“-URL kann 0 gewählt werden."
+          "reset_minutes": "Für AMweb mit „kein Alarm mehr offen“-URL kann 0 gewählt werden.",
+          "fe2_url": "Adresse der FE2-Weboberfläche, z. B. `http://192.168.1.10:83`. Leer lassen, um die FE2-Aktionen zu deaktivieren.",
+          "fe2_sender": "Wird in FE2 als Quelle des Alarms gespeichert.",
+          "fe2_authorization": "Muss im FE2-Alarmeingang „Externe Schnittstelle“ unter „Gültige Absender“ eingetragen sein."
         }
       }
     }
@@ -145,6 +151,132 @@
           "description": "Zurückzusetzender Eintrag. Ohne Angabe werden alle Einträge zurückgesetzt."
         }
       }
+    },
+    "fe2_send_alarm": {
+      "name": "FE2: Alarm senden",
+      "description": "Erstellt oder aktualisiert einen Alarm in FE2 über die externe Schnittstelle. Stichwort oder Alarmtext ist erforderlich.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos-Eintrag",
+          "description": "Zu verwendender Eintrag. Ohne Angabe werden alle Einträge mit FE2-URL verwendet."
+        },
+        "keyword": {
+          "name": "Stichwort",
+          "description": "Einsatzstichwort, z. B. BMA."
+        },
+        "keyword_description": {
+          "name": "Stichwort-Beschreibung",
+          "description": "Beschreibung des Stichworts, z. B. Brandmeldeanlage."
+        },
+        "message": {
+          "name": "Alarmtext",
+          "description": "Alarmtext. Mehrere Zeilen werden als einzelne Einträge übertragen."
+        },
+        "units": {
+          "name": "Einheiten",
+          "description": "Adressen der zu alarmierenden Einheiten. Leer = Standard-Einheiten des Alarmeingangs."
+        },
+        "external_id": {
+          "name": "Externe ID",
+          "description": "Einsatznummer zum Aktualisieren oder Schließen des Alarms. Ohne Angabe wird eine ID erzeugt und in der Antwort zurückgegeben."
+        },
+        "street": {
+          "name": "Straße",
+          "description": "Straße des Einsatzorts."
+        },
+        "house": {
+          "name": "Hausnummer",
+          "description": "Hausnummer des Einsatzorts."
+        },
+        "postal_code": {
+          "name": "Postleitzahl",
+          "description": "Postleitzahl des Einsatzorts."
+        },
+        "city": {
+          "name": "Ort",
+          "description": "Ort des Einsatzorts."
+        },
+        "building": {
+          "name": "Gebäude",
+          "description": "Gebäude / Objekt."
+        },
+        "latitude": {
+          "name": "Breitengrad",
+          "description": "Zusammen mit dem Längengrad angeben."
+        },
+        "longitude": {
+          "name": "Längengrad",
+          "description": "Zusammen mit dem Breitengrad angeben."
+        },
+        "caller_name": {
+          "name": "Anrufer",
+          "description": "Name des Meldenden."
+        },
+        "caller_contact": {
+          "name": "Rückrufnummer",
+          "description": "Kontakt des Meldenden."
+        },
+        "custom": {
+          "name": "Weitere Parameter",
+          "description": "Beliebige Schlüssel-Wert-Paare (data.custom)."
+        }
+      },
+      "sections": {
+        "location": {
+          "name": "Einsatzort"
+        },
+        "caller": {
+          "name": "Anrufer und weitere Daten"
+        }
+      }
+    },
+    "fe2_close_alarm": {
+      "name": "FE2: Alarm schließen",
+      "description": "Schließt einen Alarm in FE2 anhand der externen ID.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos-Eintrag",
+          "description": "Zu verwendender Eintrag. Ohne Angabe werden alle Einträge mit FE2-URL verwendet."
+        },
+        "external_id": {
+          "name": "Externe ID",
+          "description": "Externe ID des zu schließenden Alarms."
+        }
+      }
+    },
+    "fe2_send_status": {
+      "name": "FE2: Fahrzeugstatus senden",
+      "description": "Sendet einen Fahrzeugstatus an FE2. Fahrzeugkennung oder Funkrufname ist erforderlich.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos-Eintrag",
+          "description": "Zu verwendender Eintrag. Ohne Angabe werden alle Einträge mit FE2-URL verwendet."
+        },
+        "status": {
+          "name": "Status",
+          "description": "Fahrzeugstatus, z. B. 2."
+        },
+        "event": {
+          "name": "Statustext",
+          "description": "Beschreibung des Status, z. B. Wache an."
+        },
+        "address": {
+          "name": "Fahrzeugkennung",
+          "description": "Kennung des Fahrzeugs."
+        },
+        "radio_name": {
+          "name": "Funkrufname",
+          "description": "Funkrufname des Fahrzeugs, z. B. LF 40/1."
+        },
+        "latitude": {
+          "name": "Breitengrad",
+          "description": "Zusammen mit dem Längengrad angeben."
+        },
+        "longitude": {
+          "name": "Längengrad",
+          "description": "Zusammen mit dem Breitengrad angeben."
+        }
+      }
     }
   },
   "exceptions": {
@@ -162,6 +294,12 @@
     },
     "api_error": {
       "message": "Fehler bei der Kommunikation mit der Alamos-API: {error}"
+    },
+    "fe2_not_configured": {
+      "message": "Für keinen Alamos-Eintrag ist eine FE2-URL konfiguriert."
+    },
+    "fe2_error": {
+      "message": "FE2 ({name}) hat die Anfrage abgelehnt: {error}"
     }
   }
 }

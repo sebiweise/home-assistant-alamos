@@ -9,12 +9,14 @@
 [![GitHub Release](https://img.shields.io/github/v/release/sebiweise/home-assistant-alamos)](https://github.com/sebiweise/home-assistant-alamos/releases)
 
 Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH](https://www.alamos.gmbh)
-(aPager PRO, AMweb). Sie bringt zwei Funktionen mit:
+(aPager PRO, AMweb, FE2). Sie bringt drei Funktionen mit:
 
 1. **Webhook-Empfang**: aPager PRO („Allgemeine Webhooks“) und AMweb („Webhooks“) melden Alarme an Home Assistant.
    Daraus werden ein Alarm-Binärsensor, Sensoren für Stichwort und Einheit, eine Event-Entität und Events auf dem Bus.
 2. **Alamos API (Verfügbarkeit / Alarmrückmeldung)**: Über die [Alamos API](https://alamos-support.atlassian.net/wiki/spaces/documentation/pages/2472509441/API)
    kannst du dich per Button, Service oder Automation auf alle Alarme der letzten 3 Minuten zurückmelden (Zusage/Absage).
+3. **FE2 – Externe Schnittstelle** *(optional)*: Home Assistant löst über einen eigenen FE2-Server Alarme aus,
+   schließt sie wieder und meldet Fahrzeugstatus, z. B. bei einem Rauchmelder im Gerätehaus.
 
 > [!WARNING]
 > Diese Integration ist ein Community-Projekt und steht in keiner Verbindung zur Alamos GmbH.
@@ -60,6 +62,9 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
 | API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
+| FE2-URL | *Optional.* Adresse der FE2-Weboberfläche, z. B. `http://192.168.1.10:83`. Aktiviert die FE2-Aktionen (siehe [FE2 – Externe Schnittstelle](#fe2--externe-schnittstelle)) |
+| FE2-Absender | Wird in FE2 als Quelle gespeichert (Standard `Home Assistant`) |
+| FE2-Autorisierung | Shared Secret, das im FE2-Alarmeingang unter „Gültige Absender“ eingetragen ist |
 
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
 **Optionen** der Integration. Sie haben folgende Form:
@@ -126,6 +131,35 @@ GET https://alamos-backend.ey.r.appspot.com/fe2/feedback/user/external
 
 Falls Alamos die Basis-URL ändert, kannst du sie in den Optionen anpassen.
 
+### FE2 – Externe Schnittstelle
+
+Betreibst du einen eigenen **Alamos FE2**-Server, kann Home Assistant über dessen Alarmeingang
+„Externe Schnittstelle“ Alarme auslösen, aktualisieren und schließen sowie Fahrzeugstatus melden,
+z. B. wenn ein Rauch- oder Wassermelder im Gerätehaus auslöst.
+
+1. In FE2 einen Alarmeingang **Externe Schnittstelle** anlegen und **HTTP POST** aktivieren.
+2. Unter **Gültige Absender** ein Shared Secret eintragen (z. B. eine lange Zufallszeichenfolge).
+3. Optional **Standard-Einheiten** festlegen; sie werden alarmiert, wenn die Aktion keine Einheiten übergibt.
+4. In den Optionen der Integration **FE2-URL** (Port der FE2-Weboberfläche, Standard `83`) und
+   **FE2-Autorisierung** (das Shared Secret) eintragen.
+
+Die Integration sendet UTF-8-JSON im Datenformat v2 an:
+
+```
+POST <FE2-URL>/rest/external/http/alarm/v2    # Alarm (type ALARM) und Alarm schließen (type CLOSE)
+POST <FE2-URL>/rest/external/http/status/v2   # Fahrzeugstatus (type STATUS)
+```
+
+| HTTP-Status | Bedeutung |
+| --- | --- |
+| 200 + `{"status": "OK"}` | Erfolgreich übergeben |
+| 200 + `{"status": "NOT_OK"}` / 400 | Aufruf fehlerhaft, Details im Feld `error` |
+| 406 | Der Alarmeingang ist deaktiviert |
+| 409 | Konflikt mit Einstellungen/Voraussetzungen in FE2 |
+
+Fehler werden als Fehlermeldung der Aktion angezeigt. Grundlage ist die Alamos-Doku zur externen Schnittstelle
+(„Zugriff via HTTP POST/GET“, „Datenformat Externe Schnittstelle“); mit einem echten FE2-System ist das noch nicht getestet.
+
 ## Entitäten
 
 | Entität | Beschreibung |
@@ -156,6 +190,59 @@ response_variable: result # optional: {"results": [{"status": 200, "result": "su
 ### `alamos.reset_alarm`
 
 Setzt den Alarm-Sensor zurück (optional `config_entry_id`).
+
+### `alamos.fe2_send_alarm`
+
+Erstellt einen Alarm in FE2 oder aktualisiert ihn (gleiche `external_id`). `keyword` oder `message` ist Pflicht,
+alle anderen Felder sind optional.
+
+```yaml
+action: alamos.fe2_send_alarm
+data:
+  keyword: BMA
+  keyword_description: Brandmeldeanlage
+  message: "Rauchmelder Gerätehaus Keller"   # mehrere Zeilen = mehrere Einträge
+  units: ["1234567"]       # leer = Standard-Einheiten des Alarmeingangs
+  external_id: ha-bma-1    # optional, sonst wird eine ID erzeugt
+  street: Musterstraße
+  house: "10"
+  postal_code: "12345"
+  city: Musterhausen
+  building: Gerätehaus
+  latitude: 50.12345
+  longitude: 10.123456
+  caller_name: Home Assistant
+  caller_contact: "0123 456789"
+  custom:                  # beliebige Zusatzdaten (data.custom)
+    remark: Ausgelöst durch binary_sensor.rauchmelder_keller
+response_variable: fe2     # {"results": [{"status": 200, "external_id": "ha-bma-1", ...}]}
+```
+
+### `alamos.fe2_close_alarm`
+
+Schließt einen Alarm anhand seiner externen ID.
+
+```yaml
+action: alamos.fe2_close_alarm
+data:
+  external_id: "{{ fe2.results[0].external_id }}"
+```
+
+### `alamos.fe2_send_status`
+
+Meldet einen Fahrzeugstatus. `address` (Fahrzeugkennung) oder `radio_name` ist Pflicht.
+
+```yaml
+action: alamos.fe2_send_status
+data:
+  status: "2"
+  event: Wache an
+  radio_name: LF 40/1
+  latitude: 48.342424     # optional, zusammen mit longitude
+  longitude: 10.905622
+```
+
+Alle FE2-Aktionen akzeptieren `config_entry_id`; ohne Angabe gehen sie an alle Einträge mit FE2-URL.
 
 ## Events
 

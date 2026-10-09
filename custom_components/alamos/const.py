@@ -27,10 +27,14 @@ CONF_KEYWORD_PARAM: Final = "keyword_param"
 CONF_UNIT_PARAM: Final = "unit_param"
 CONF_UNIT_FILTER: Final = "unit_filter"
 CONF_TEST_KEYWORDS: Final = "test_keywords"
+CONF_FE2_URL: Final = "fe2_url"
+CONF_FE2_SENDER: Final = "fe2_sender"
+CONF_FE2_AUTHORIZATION: Final = "fe2_authorization"
 
 DEFAULT_RESET_MINUTES: Final = 30
 DEFAULT_KEYWORD_PARAM: Final = "keyword"
 DEFAULT_UNIT_PARAM: Final = "unit"
+DEFAULT_FE2_SENDER: Final = "Home Assistant"
 
 # Query / body parameter used to tell the integration which event happened.
 # AMweb can call one URL on a new alarm and another one when no alarm is open
@@ -54,6 +58,9 @@ EVENT_TYPE_TEST_ALARM: Final = "test_alarm"
 # Services
 SERVICE_SEND_FEEDBACK: Final = "send_feedback"
 SERVICE_RESET_ALARM: Final = "reset_alarm"
+SERVICE_FE2_SEND_ALARM: Final = "fe2_send_alarm"
+SERVICE_FE2_CLOSE_ALARM: Final = "fe2_close_alarm"
+SERVICE_FE2_SEND_STATUS: Final = "fe2_send_status"
 ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 ATTR_MODE: Final = "mode"
 ATTR_SUPPRESS_NOTIFICATION: Final = "suppress_notification"

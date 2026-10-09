@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import AlamosApiClient
 from .const import EVENT_TYPE_CLEARED, EVENT_TYPE_TEST_ALARM, FEEDBACK_WINDOW
+from .fe2 import Fe2Client
 
 
 @dataclass(slots=True)
@@ -21,6 +22,7 @@ class AlamosRuntimeData:
 
     manager: AlamosAlarmManager
     client: AlamosApiClient | None
+    fe2: Fe2Client | None = None
 
 
 @dataclass(slots=True)

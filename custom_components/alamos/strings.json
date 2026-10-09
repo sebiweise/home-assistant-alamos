@@ -29,12 +29,18 @@
           "unit_param": "Parameter name for the unit",
           "api_url": "API base URL",
           "unit_filter": "Unit filter",
-          "test_keywords": "Test alarm keywords"
+          "test_keywords": "Test alarm keywords",
+          "fe2_url": "FE2 URL (external interface)",
+          "fe2_sender": "FE2 sender",
+          "fe2_authorization": "FE2 authorization (shared secret)"
         },
         "data_description": {
           "unit_filter": "Only process alarms of these units (case-insensitive). Empty = all. Alarms without a unit are always processed.",
           "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
-          "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL."
+          "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL.",
+          "fe2_url": "Address of the FE2 web interface, e.g. `http://192.168.1.10:83`. Leave empty to disable the FE2 actions.",
+          "fe2_sender": "Stored in FE2 as the source of the alarm.",
+          "fe2_authorization": "Must be listed under \"Gültige Absender\" (valid senders) of the FE2 input \"Externe Schnittstelle\"."
         }
       }
     }
@@ -145,6 +151,132 @@
           "description": "Entry to reset. If omitted, all entries are reset."
         }
       }
+    },
+    "fe2_send_alarm": {
+      "name": "FE2: Send alarm",
+      "description": "Creates or updates an alarm in FE2 via the external interface. Keyword or message is required.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos entry",
+          "description": "Entry to use. If omitted, all entries with an FE2 URL are used."
+        },
+        "keyword": {
+          "name": "Keyword",
+          "description": "Alarm keyword, e.g. BMA."
+        },
+        "keyword_description": {
+          "name": "Keyword description",
+          "description": "Description of the keyword, e.g. fire alarm system."
+        },
+        "message": {
+          "name": "Message",
+          "description": "Alarm text. Multiple lines are sent as separate entries."
+        },
+        "units": {
+          "name": "Units",
+          "description": "Addresses of the units to alarm. Empty = default units of the FE2 input."
+        },
+        "external_id": {
+          "name": "External ID",
+          "description": "Incident number used to update or close the alarm. If omitted, an ID is generated and returned in the response."
+        },
+        "street": {
+          "name": "Street",
+          "description": "Street of the incident location."
+        },
+        "house": {
+          "name": "House number",
+          "description": "House number of the incident location."
+        },
+        "postal_code": {
+          "name": "Postal code",
+          "description": "Postal code of the incident location."
+        },
+        "city": {
+          "name": "City",
+          "description": "City of the incident location."
+        },
+        "building": {
+          "name": "Building",
+          "description": "Building / object."
+        },
+        "latitude": {
+          "name": "Latitude",
+          "description": "Set together with the longitude."
+        },
+        "longitude": {
+          "name": "Longitude",
+          "description": "Set together with the latitude."
+        },
+        "caller_name": {
+          "name": "Caller",
+          "description": "Name of the caller."
+        },
+        "caller_contact": {
+          "name": "Caller contact",
+          "description": "Contact of the caller."
+        },
+        "custom": {
+          "name": "Custom parameters",
+          "description": "Any key-value pairs (data.custom)."
+        }
+      },
+      "sections": {
+        "location": {
+          "name": "Location"
+        },
+        "caller": {
+          "name": "Caller and more"
+        }
+      }
+    },
+    "fe2_close_alarm": {
+      "name": "FE2: Close alarm",
+      "description": "Closes an alarm in FE2 by its external ID.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos entry",
+          "description": "Entry to use. If omitted, all entries with an FE2 URL are used."
+        },
+        "external_id": {
+          "name": "External ID",
+          "description": "External ID of the alarm to close."
+        }
+      }
+    },
+    "fe2_send_status": {
+      "name": "FE2: Send vehicle status",
+      "description": "Sends a vehicle status to FE2. Vehicle address or radio name is required.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos entry",
+          "description": "Entry to use. If omitted, all entries with an FE2 URL are used."
+        },
+        "status": {
+          "name": "Status",
+          "description": "Vehicle status, e.g. 2."
+        },
+        "event": {
+          "name": "Status text",
+          "description": "Description of the status."
+        },
+        "address": {
+          "name": "Vehicle address",
+          "description": "Identifier of the vehicle."
+        },
+        "radio_name": {
+          "name": "Radio name",
+          "description": "Radio call name of the vehicle, e.g. LF 40/1."
+        },
+        "latitude": {
+          "name": "Latitude",
+          "description": "Set together with the longitude."
+        },
+        "longitude": {
+          "name": "Longitude",
+          "description": "Set together with the latitude."
+        }
+      }
     }
   },
   "exceptions": {
@@ -162,6 +294,12 @@
     },
     "api_error": {
       "message": "Error communicating with the Alamos API: {error}"
+    },
+    "fe2_not_configured": {
+      "message": "No Alamos entry has an FE2 URL configured."
+    },
+    "fe2_error": {
+      "message": "FE2 ({name}) rejected the request: {error}"
     }
   }
 }

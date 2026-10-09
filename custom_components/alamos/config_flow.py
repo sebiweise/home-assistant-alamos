@@ -21,6 +21,9 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_FE2_AUTHORIZATION,
+    CONF_FE2_SENDER,
+    CONF_FE2_URL,
     CONF_KEYWORD_PARAM,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
@@ -29,6 +32,7 @@ from .const import (
     CONF_UNIT_PARAM,
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
+    DEFAULT_FE2_SENDER,
     DEFAULT_KEYWORD_PARAM,
     DEFAULT_RESET_MINUTES,
     DEFAULT_UNIT_PARAM,
@@ -101,6 +105,18 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 CONF_API_URL,
                 default=options.get(CONF_API_URL, DEFAULT_API_URL),
             ): URL_SELECTOR,
+            vol.Optional(
+                CONF_FE2_URL,
+                description={"suggested_value": options.get(CONF_FE2_URL)},
+            ): URL_SELECTOR,
+            vol.Optional(
+                CONF_FE2_SENDER,
+                default=options.get(CONF_FE2_SENDER, DEFAULT_FE2_SENDER),
+            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_FE2_AUTHORIZATION,
+                description={"suggested_value": options.get(CONF_FE2_AUTHORIZATION)},
+            ): PASSWORD_SELECTOR,
         }
     )
 
@@ -118,6 +134,13 @@ def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
         options.get(CONF_UNIT_PARAM) or DEFAULT_UNIT_PARAM
     ).strip()
     options[CONF_API_URL] = (options.get(CONF_API_URL) or DEFAULT_API_URL).strip()
+    options[CONF_FE2_URL] = (options.get(CONF_FE2_URL) or "").strip()
+    options[CONF_FE2_SENDER] = (
+        options.get(CONF_FE2_SENDER) or ""
+    ).strip() or DEFAULT_FE2_SENDER
+    options[CONF_FE2_AUTHORIZATION] = (
+        options.get(CONF_FE2_AUTHORIZATION) or ""
+    ).strip()
     for key in (CONF_UNIT_FILTER, CONF_TEST_KEYWORDS):
         options[key] = [
             item.strip() for item in options.get(key) or [] if item and item.strip()

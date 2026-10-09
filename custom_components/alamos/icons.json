@@ -20,6 +20,9 @@
   },
   "services": {
     "send_feedback": { "service": "mdi:reply" },
-    "reset_alarm": { "service": "mdi:alarm-off" }
+    "reset_alarm": { "service": "mdi:alarm-off" },
+    "fe2_send_alarm": { "service": "mdi:bullhorn" },
+    "fe2_close_alarm": { "service": "mdi:bullhorn-variant-outline" },
+    "fe2_send_status": { "service": "mdi:fire-truck" }
   }
 }

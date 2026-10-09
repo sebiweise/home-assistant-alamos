@@ -35,10 +35,14 @@ from .const import (
     ATTR_SUPPRESS_NOTIFICATION,
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_FE2_AUTHORIZATION,
+    CONF_FE2_SENDER,
+    CONF_FE2_URL,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
+    DEFAULT_FE2_SENDER,
     DEFAULT_RESET_MINUTES,
     DOMAIN,
     EVENT_ALARM,
@@ -48,6 +52,8 @@ from .const import (
     SERVICE_RESET_ALARM,
     SERVICE_SEND_FEEDBACK,
 )
+from .fe2 import Fe2Client
+from .fe2_services import async_register_fe2_services
 from .receiver import async_create_webhook_handler
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,6 +86,7 @@ async def async_setup(  # NOSONAR
 ) -> bool:
     """Register the integration services."""
     _async_register_services(hass)
+    async_register_fe2_services(hass, _async_get_entries)
     return True
 
 
@@ -98,7 +105,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
             options.get(CONF_API_URL) or DEFAULT_API_URL,
         )
 
-    entry.runtime_data = AlamosRuntimeData(manager=manager, client=client)
+    fe2: Fe2Client | None = None
+    if fe2_url := options.get(CONF_FE2_URL):
+        fe2 = Fe2Client(
+            async_get_clientsession(hass),
+            fe2_url,
+            options.get(CONF_FE2_SENDER) or DEFAULT_FE2_SENDER,
+            options.get(CONF_FE2_AUTHORIZATION, ""),
+        )
+
+    entry.runtime_data = AlamosRuntimeData(manager=manager, client=client, fe2=fe2)
 
     @callback
     def _fire_bus_event(event_type: str, data: dict[str, Any]) -> None:
