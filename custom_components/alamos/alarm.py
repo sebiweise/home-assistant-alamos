@@ -243,7 +243,7 @@ class AlamosAlarmManager:
 def _same_keyword(first: str | None, second: str | None) -> bool:
     """Return True if two keywords are equal (case-insensitive)."""
     if first is None or second is None:
-        return first is second
+        return first is None and second is None
     return first.casefold() == second.casefold()
 
 
