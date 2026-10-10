@@ -18,6 +18,7 @@ from .const import (
     ATTR_KEYWORD,
     ATTR_SOURCE,
     ATTR_UNIT,
+    ATTR_UNITS,
 )
 from .entity import AlamosEntity
 
@@ -52,6 +53,7 @@ class AlamosAlarmBinarySensor(AlamosEntity, BinarySensorEntity):
         return {
             ATTR_KEYWORD: state.keyword,
             ATTR_UNIT: state.unit,
+            ATTR_UNITS: state.units,
             ATTR_SOURCE: state.source,
             ATTR_DATA: state.data,
             ATTR_FEEDBACK_DEADLINE: (
