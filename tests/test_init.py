@@ -347,3 +347,63 @@ async def test_webhook_recall_unit_filter(
     await hass.async_block_till_done()
     assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
     assert len(cleared) == 1
+
+
+async def test_webhooks_per_unit_are_merged(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """aPager PRO sends one webhook per alarmed unit; they form one alarm."""
+    await _setup(hass)
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    resp = await client.post(url, json={"keyword": "B3", "unit": "LZ1"})
+    assert await resp.text() == "ok"
+    freezer.tick(timedelta(seconds=5))
+    resp = await client.post(url, json={"keyword": "b3", "unit": "LZ2"})
+    assert await resp.text() == "merged"
+    resp = await client.post(url, json={"keyword": "B3", "unit": "LZ1"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+
+    assert len(alarms) == 1
+    assert alarms[0].data["units"] == ["LZ1"]
+    state = hass.states.get("binary_sensor.feuerwehr_alarm")
+    assert state.attributes["units"] == ["LZ1", "LZ2"]
+    assert state.attributes["unit"] == "LZ1"
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "1"
+
+    # A different keyword or a later webhook is a new alarm.
+    resp = await client.post(url, json={"keyword": "THL", "unit": "LZ1"})
+    assert await resp.text() == "ok"
+    freezer.tick(timedelta(seconds=31))
+    resp = await client.post(url, json={"keyword": "THL", "unit": "LZ1"})
+    assert await resp.text() == "ok"
+    await hass.async_block_till_done()
+    assert len(alarms) == 3
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "3"
+
+
+async def test_repeated_test_alarm_and_recall(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """Test alarms and recalls of several units are reported once."""
+    entry = await _setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_TEST_KEYWORDS: ["probealarm"]}
+    )
+    await hass.async_block_till_done()
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    for unit in ("LZ1", "LZ2"):
+        await client.get(url, params={"keyword": "Probealarm", "unit": unit})
+        await client.get(url, params={"event": "recall", "keyword": "F2", "unit": unit})
+    await hass.async_block_till_done()
+
+    assert len(alarms) == 1
+    assert alarms[0].data["test"] is True
+    assert len(cleared) == 1

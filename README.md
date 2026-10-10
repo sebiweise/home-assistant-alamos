@@ -83,7 +83,7 @@ Bei POST darf `event` auch im JSON-Body stehen.
 
 ### aPager PRO – Allgemeine Webhooks
 
-In der App unter **Einstellungen → Smart Home → Webhooks** (Smart-Home-Abo erforderlich):
+In der App unter **Einstellungen → Smart Home → Webhooks** (iOS) bzw. **Einstellungen → Labor** (Android), Smart-Home-Paket erforderlich:
 
 - **URL**: die Webhook-URL von oben
 - **Methode**: `GET` oder `POST`. Beides wird unterstützt; POST sendet ein JSON-Objekt.
@@ -91,6 +91,21 @@ In der App unter **Einstellungen → Smart Home → Webhooks** (Smart-Home-Abo e
   Wenn du sie in der App umbenennst, trage die neuen Namen in den Optionen der Integration ein.
 
 Der aPager PRO löst Webhooks nur bei echten Alarmen aus (Reiter „Alarm“), nicht bei Info-, Unwetter- oder Statusalarmen.
+
+**Mehrere Einheiten:** Seit aPager PRO Android 6.9.0 wird der Webhook für jede gleichzeitig alarmierte Einheit
+einzeln aufgerufen. Die Integration fasst Webhooks mit gleichem Stichwort, die innerhalb von 30 Sekunden eintreffen,
+zu **einem** Alarm zusammen. Event, Benachrichtigung und Zähler kommen also nur einmal, alle Einheiten stehen im Attribut
+`units` des Alarm-Sensors. Das Event `alamos_alarm` enthält nur die zuerst gemeldete Einheit, weil es sofort ausgelöst wird.
+Probealarme und Rückalarme mehrerer Einheiten werden ebenfalls nur einmal gemeldet.
+
+**Kommt nichts an?**
+
+- Seit aPager PRO 6.7.1 lösen Webhooks nur aus, wenn deine FE2-Organisation das erlaubt. Frag im Zweifel deinen Admin.
+- Ist der Webhook unter **Klingeltöne** (Android) bzw. **Einheitenkonfiguration → Klingeltöne** (iOS) an der richtigen Einheit aktiviert und gespeichert?
+- iOS akzeptiert nur `https://`-URLs. POST gibt es unter iOS erst ab Version 1.22.0, sonst `GET` verwenden.
+- URL-Platzhalter (`{unit}`, `{keyword}`) und ein eigener Header (ab aPager PRO 6.1) sind nicht nötig: Die Webhook-ID in der URL ist das Geheimnis.
+- Mit **Webhook testen** in der App schickt der aPager PRO `unit1` / `B3`. Das taucht in Home Assistant als normaler Alarm auf.
+- Die Smart-Home-Funktionen (Webhooks, API) brauchen das kostenpflichtige **Smart-Home-Paket** in der App. Bei Fragen dazu hilft der Alamos-Support, nicht der Betreiber deines FE2-Systems.
 
 Für Rückalarme/Alarmabbrüche legst du einen **zweiten Webhook** mit der URL `…?event=recall` an und lässt ihn nur bei
 einem Rückalarm auslösen. Ob und wie die App einen Webhook auf Rückalarme beschränken kann, hängt von deiner
@@ -110,6 +125,10 @@ AMweb ruft die hinterlegten URLs per `GET` auf:
 2. Den Schlüssel bei der Einrichtung oder später in den Optionen eintragen.
 3. Ein aktives **Smart-Home-Abo** ist Voraussetzung.
 
+Der Schlüssel funktioniert nur für Alarme aus dem Profil, in dem er erzeugt wurde. Bei einer **Doppelmitgliedschaft**
+(z. B. Feuerwehr und Rettungsdienst) legst du die Integration einfach zweimal an, einmal pro Profil mit dem jeweiligen
+Schlüssel. Ohne `config_entry_id` meldet `alamos.send_feedback` dann für alle Profile zurück.
+
 Die Integration ruft folgenden Endpunkt auf:
 
 ```
@@ -126,11 +145,37 @@ GET https://alamos-backend.ey.r.appspot.com/fe2/feedback/user/external
 
 Falls Alamos die Basis-URL ändert, kannst du sie in den Optionen anpassen.
 
+### Termine aus dem aPager-PRO-Kalender
+
+Übungsdienste und andere Termine deiner Organisation lassen sich ohne diese Integration direkt in Home Assistant anzeigen:
+
+1. In der aPager PRO App den **Kalender** öffnen → **Einstellungen** → beim gewünschten Kalender über das Drei-Punkte-Menü
+   den **persönlichen iCal-Link** erzeugen und kopieren. Das geht nur, wenn dein Admin iCal-Links für den Kalender erlaubt hat.
+2. In Home Assistant **Einstellungen → Geräte & Dienste → Integration hinzufügen → „Remote Calendar“** (ab Home Assistant
+   2025.4) wählen und den Link eintragen.
+
+Damit bekommst du eine Kalender-Entität, z. B. für eine Erinnerung vor dem Übungsdienst:
+
+```yaml
+triggers:
+  - trigger: calendar
+    event: start
+    entity_id: calendar.feuerwehr_ubungsdienste
+    offset: "-01:00:00"
+actions:
+  - action: notify.mobile_app_mein_handy
+    data:
+      title: "{{ trigger.calendar_event.summary }}"
+      message: "Beginnt um {{ as_datetime(trigger.calendar_event.start).strftime('%H:%M') }} Uhr"
+```
+
+Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zurücksetzen.
+
 ## Entitäten
 
 | Entität | Beschreibung |
 | --- | --- |
-| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
+| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
 | `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (bei `event=recall` mit `recall: true`, `keyword`, `unit`, `data`) |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
 | `sensor.<name>_unit` | Einheit des letzten Alarms |
@@ -161,7 +206,7 @@ Setzt den Alarm-Sensor zurück (optional `config_entry_id`).
 
 | Event | Daten |
 | --- | --- |
-| `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `data`, `test` (`true` bei Probealarm), `feedback_deadline` (ISO-Zeitstempel, Alarm + 3 Minuten) |
+| `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `units`, `data`, `test` (`true` bei Probealarm), `feedback_deadline` (ISO-Zeitstempel, Alarm + 3 Minuten) |
 | `alamos_alarm_cleared` | `config_entry_id`, `name`; bei `event=recall` zusätzlich `recall: true`, `keyword`, `unit`, `data` |
 
 ## Blueprints

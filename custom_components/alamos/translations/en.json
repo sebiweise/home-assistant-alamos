@@ -50,6 +50,9 @@
           "unit": {
             "name": "Unit"
           },
+          "units": {
+            "name": "Units"
+          },
           "source": {
             "name": "Source"
           },
