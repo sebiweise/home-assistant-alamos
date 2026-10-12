@@ -121,50 +121,59 @@ def async_create_webhook_handler(entry: ConfigEntry):
     async def async_handle_webhook(
         hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
-        """Handle an incoming webhook call."""
+        """Handle an incoming webhook call and record it."""
         manager = entry.runtime_data.manager
 
         payload = await _async_read_request(request)
         if isinstance(payload, web.Response):
+            manager.async_webhook_received(request.method, {}, payload.text or "")
             return payload
 
-        event = str(payload.pop(WEBHOOK_EVENT_PARAM, "") or "").strip().lower()
-        if event in WEBHOOK_CLEAR_VALUES:
-            manager.async_clear(EVENT_TYPE_CLEARED)
-            return web.Response(status=200, text="cleared")
-
-        keyword, unit = _keyword_and_unit(entry, payload)
-
-        if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
-            _LOGGER.debug(
-                "Ignoring %s for unit %s (unit filter)", event or "alarm", unit
-            )
-            return web.Response(status=200, text="ignored")
-
-        if event in WEBHOOK_RECALL_VALUES:
-            reported = manager.async_recall(
-                {
-                    ATTR_KEYWORD: keyword,
-                    ATTR_UNIT: unit,
-                    ATTR_DATA: payload,
-                    ATTR_RECALL: True,
-                }
-            )
-            return web.Response(status=200, text="cleared" if reported else "merged")
-
-        if _is_test_alarm(keyword, entry.options.get(CONF_TEST_KEYWORDS, [])):
-            reported = manager.async_test_alarm(
-                keyword=keyword, unit=unit, data=payload
-            )
-            return web.Response(status=200, text="test" if reported else "merged")
-
-        new_alarm = manager.async_alarm(
-            keyword=keyword,
-            unit=unit,
-            data=payload,
-            source=request.method,
-            event_type=EVENT_TYPE_ALARM,
-        )
-        return web.Response(status=200, text="ok" if new_alarm else "merged")
+        raw = dict(payload)
+        response = _process_payload(entry, payload, request.method)
+        manager.async_webhook_received(request.method, raw, response.text or "")
+        return response
 
     return async_handle_webhook
+
+
+def _process_payload(
+    entry: ConfigEntry, payload: dict[str, Any], method: str
+) -> web.Response:
+    """Turn a webhook payload into an alarm, recall or clear."""
+    manager = entry.runtime_data.manager
+
+    event = str(payload.pop(WEBHOOK_EVENT_PARAM, "") or "").strip().lower()
+    if event in WEBHOOK_CLEAR_VALUES:
+        manager.async_clear(EVENT_TYPE_CLEARED)
+        return web.Response(status=200, text="cleared")
+
+    keyword, unit = _keyword_and_unit(entry, payload)
+
+    if not _matches_unit_filter(unit, entry.options.get(CONF_UNIT_FILTER, [])):
+        _LOGGER.debug("Ignoring %s for unit %s (unit filter)", event or "alarm", unit)
+        return web.Response(status=200, text="ignored")
+
+    if event in WEBHOOK_RECALL_VALUES:
+        reported = manager.async_recall(
+            {
+                ATTR_KEYWORD: keyword,
+                ATTR_UNIT: unit,
+                ATTR_DATA: payload,
+                ATTR_RECALL: True,
+            }
+        )
+        return web.Response(status=200, text="cleared" if reported else "merged")
+
+    if _is_test_alarm(keyword, entry.options.get(CONF_TEST_KEYWORDS, [])):
+        reported = manager.async_test_alarm(keyword=keyword, unit=unit, data=payload)
+        return web.Response(status=200, text="test" if reported else "merged")
+
+    new_alarm = manager.async_alarm(
+        keyword=keyword,
+        unit=unit,
+        data=payload,
+        source=method,
+        event_type=EVENT_TYPE_ALARM,
+    )
+    return web.Response(status=200, text="ok" if new_alarm else "merged")

@@ -38,6 +38,16 @@ class FeedbackState:
 
 
 @dataclass(slots=True)
+class WebhookInfo:
+    """Last webhook call as received, for troubleshooting."""
+
+    timestamp: datetime
+    method: str
+    data: dict[str, Any]
+    result: str
+
+
+@dataclass(slots=True)
 class AlarmState:
     """Current alarm state."""
 
@@ -51,6 +61,7 @@ class AlarmState:
     last_cleared: datetime | None = None
     alarm_count: int = 0
     feedback: FeedbackState | None = None
+    last_webhook: WebhookInfo | None = None
 
 
 class AlamosAlarmManager:
@@ -219,6 +230,16 @@ class AlamosAlarmManager:
         """Store the result of a feedback request."""
         self.state.feedback = FeedbackState(
             mode=mode, result=result, timestamp=dt_util.utcnow()
+        )
+        self._notify()
+
+    @callback
+    def async_webhook_received(
+        self, method: str, data: dict[str, Any], result: str
+    ) -> None:
+        """Store the last webhook call, whatever it was used for."""
+        self.state.last_webhook = WebhookInfo(
+            timestamp=dt_util.utcnow(), method=method, data=data, result=result
         )
         self._notify()
 

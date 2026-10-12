@@ -110,6 +110,13 @@ Probealarme und Rückalarme mehrerer Einheiten werden ebenfalls nur einmal gemel
 - iOS akzeptiert nur `https://`-URLs. POST gibt es unter iOS erst ab Version 1.22.0, sonst `GET` verwenden.
 - URL-Platzhalter (`{unit}`, `{keyword}`) und ein eigener Header (ab aPager PRO 6.1) sind nicht nötig: Die Webhook-ID in der URL ist das Geheimnis.
 - Mit **Webhook testen** in der App schickt der aPager PRO `unit1` / `B3`. Das taucht in Home Assistant als normaler Alarm auf.
+- Jeder Aufruf landet im Diagnose-Sensor **Letzter Webhook** (Rohdaten und Ergebnis, im Verlauf nachvollziehbar). Zusätzlich schreibt die Integration jeden Aufruf ins Log, wenn du in der `configuration.yaml` Folgendes einträgst:
+
+  ```yaml
+  logger:
+    logs:
+      custom_components.alamos: debug
+  ```
 - Die Smart-Home-Funktionen (Webhooks, API) brauchen das kostenpflichtige **Smart-Home-Paket** in der App. Bei Fragen dazu hilft der Alamos-Support, nicht der Betreiber deines FE2-Systems.
 
 Für Rückalarme/Alarmabbrüche legst du einen **zweiten Webhook** mit der URL `…?event=recall` an und lässt ihn nur bei
@@ -183,6 +190,7 @@ Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zur�
 | `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
 | `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (bei `event=recall` mit `recall: true`, `keyword`, `unit`, `data`) |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
+| `sensor.<name>_last_webhook` | *Diagnose.* Zeitpunkt des letzten Webhook-Aufrufs, egal ob Alarm, zusammengefasst, Probealarm, Rückalarm oder vom Einheiten-Filter ignoriert. Attribute: `received` (genauer Zeitpunkt), `method`, `result` (`ok`, `merged`, `test`, `cleared`, `ignored`), `data` (Rohdaten). Im Verlauf steht damit jeder einzelne Aufruf |
 | `sensor.<name>_unit` | Alle Einheiten des letzten Alarms, Favoriten-Einheit zuerst (z. B. `LZ2, LZ1`). Attribute: `unit` (Haupteinheit), `units` (Liste) |
 | `sensor.<name>_last_alarm` | Zeitpunkt des letzten Alarms |
 | `sensor.<name>_alarm_count` | Anzahl empfangener Alarme (Diagnose) |

@@ -75,6 +75,27 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
         value_fn=lambda state: state.alarm_count,
     ),
     AlamosSensorEntityDescription(
+        key="last_webhook",
+        translation_key="last_webhook",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda state: (
+            state.last_webhook.timestamp if state.last_webhook else None
+        ),
+        attrs_fn=lambda state: (
+            {
+                # The state is shown in seconds; the exact time makes every
+                # call a new entry in the history, even within one second.
+                "received": state.last_webhook.timestamp.isoformat(),
+                "method": state.last_webhook.method,
+                "result": state.last_webhook.result,
+                ATTR_DATA: state.last_webhook.data,
+            }
+            if state.last_webhook
+            else {}
+        ),
+    ),
+    AlamosSensorEntityDescription(
         key="last_feedback",
         translation_key="last_feedback",
         device_class=SensorDeviceClass.ENUM,
