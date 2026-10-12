@@ -7,6 +7,12 @@ blueprint:
     gewählt werden.
 
 
+    Optional nur dann, wenn eine bestimmte Einheit (z. B. deine
+    Favoriten-Einheit) mitalarmiert ist. Die Alamos-API selbst kennt keine
+    Einheit: Eine Rückmeldung gilt immer für alle Alarme der letzten
+    3 Minuten deines Profils.
+
+
     Voraussetzung: Alamos-Integration mit API-Schlüssel und Smart-Home-Abo.
   domain: automation
   author: sebiweise
@@ -67,6 +73,17 @@ blueprint:
           min: 0
           max: 150
           unit_of_measurement: s
+    unit:
+      name: Nur bei Alarm für diese Einheit
+      description: >-
+        Rückmeldung nur, wenn diese Einheit unter den alarmierten Einheiten ist
+        (Groß-/Kleinschreibung egal), z. B. deine Favoriten-Einheit. Da
+        aPager PRO je Einheit einen eigenen Webhook schickt, wartet die
+        Automation bis zu 30 Sekunden nach dem Alarm auf diese Einheit.
+        Leer = bei jedem Alarm.
+      default: ""
+      selector:
+        text:
     ignore_test_alarms:
       name: Probealarme ignorieren
       default: true
@@ -89,6 +106,8 @@ variables:
   ignore_test: !input ignore_test_alarms
   mode_in_zone: !input mode_in_zone
   mode_outside_zone: !input mode_outside_zone
+  required_unit: !input unit
+  delay_seconds: !input delay
   in_zone: "{{ person_entity in (state_attr(zone_entity, 'persons') or []) }}"
   feedback_mode: "{{ mode_in_zone if in_zone else mode_outside_zone }}"
 
@@ -101,6 +120,22 @@ conditions:
 actions:
   - delay:
       seconds: !input delay
+  - if:
+      - condition: template
+        value_template: "{{ required_unit | trim != '' }}"
+    then:
+      # Webhooks of further units arrive within 30 seconds of the first one.
+      - wait_template: >-
+          {% set ns = namespace(units=[]) %}
+          {% for entity in integration_entities('alamos')
+             if entity.startswith('binary_sensor.')
+             and config_entry_id(entity) == alamos_entry %}
+            {% set ns.units = state_attr(entity, 'units') or [] %}
+          {% endfor %}
+          {{ required_unit | trim | lower in ns.units | map('lower') | list }}
+        timeout:
+          seconds: "{{ [30 - (delay_seconds | int), 0] | max }}"
+        continue_on_timeout: false
   - action: alamos.send_feedback
     data:
       config_entry_id: "{{ alamos_entry }}"
