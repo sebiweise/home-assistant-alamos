@@ -110,6 +110,23 @@
       "alarm_count": {
         "name": "Alarm count"
       },
+      "last_webhook": {
+        "name": "Last webhook",
+        "state_attributes": {
+          "received": {
+            "name": "Received"
+          },
+          "method": {
+            "name": "Method"
+          },
+          "result": {
+            "name": "Result"
+          },
+          "data": {
+            "name": "Data"
+          }
+        }
+      },
       "last_feedback": {
         "name": "Last feedback",
         "state": {

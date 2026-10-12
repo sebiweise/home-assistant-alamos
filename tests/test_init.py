@@ -474,3 +474,35 @@ async def test_favorite_unit(hass: HomeAssistant, hass_client_no_auth) -> None:
     state = hass.states.get("binary_sensor.feuerwehr_alarm")
     assert state.attributes["unit"] == "LZ2"
     assert state.attributes["units"] == ["LZ2", "LZ1", "DLK"]
+
+
+async def test_last_webhook_sensor(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Every webhook call is recorded, including merged and ignored ones."""
+    entry = await _setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_UNIT_FILTER: ["LZ1"]}
+    )
+    await hass.async_block_till_done()
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    await client.post(url, json={"keyword": "BMA", "unit": "LZ1"})
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.feuerwehr_last_webhook")
+    assert state.attributes["method"] == "POST"
+    assert state.attributes["result"] == "ok"
+    assert state.attributes["data"] == {"keyword": "BMA", "unit": "LZ1"}
+    first = state.attributes["received"]
+
+    await client.get(url, params={"keyword": "", "unit": "LZ1"})
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.feuerwehr_last_webhook")
+    assert state.attributes["received"] != first
+    assert state.attributes["result"] == "merged"
+    assert state.attributes["data"] == {"keyword": "", "unit": "LZ1"}
+
+    await client.get(url, params={"event": "recall", "unit": "LZ9"})
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.feuerwehr_last_webhook")
+    assert state.attributes["result"] == "ignored"
+    assert state.attributes["data"] == {"event": "recall", "unit": "LZ9"}
