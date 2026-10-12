@@ -157,6 +157,14 @@ GET https://alamos-backend.ey.r.appspot.com/fe2/feedback/user/external
 
 Falls Alamos die Basis-URL ändert, kannst du sie in den Optionen anpassen.
 
+> [!NOTE]
+> **Keine Rückmeldung je Einheit:** Die Alamos-API kennt keinen Parameter für die Einheit oder einen einzelnen Alarm.
+> Eine Zusage oder Absage gilt immer für **alle** Alarme der letzten 3 Minuten in dem Profil, zu dem der API-Schlüssel
+> gehört. Werden mehrere deiner Einheiten gleichzeitig alarmiert, meldest du dich also für alle zurück. Gezielt
+> unterscheiden lässt sich nur nach Profil (eigener Integrationseintrag je Profil, siehe oben). Ob du überhaupt
+> zurückmeldest, kannst du aber von der Einheit abhängig machen, z. B. mit der Option „Nur bei Alarm für diese Einheit“
+> im Blueprint [Automatische Rückmeldung nach Anwesenheit](#automatische-rückmeldung-nach-anwesenheit).
+
 ### Termine aus dem aPager-PRO-Kalender
 
 Übungsdienste und andere Termine deiner Organisation lassen sich ohne diese Integration direkt in Home Assistant anzeigen:
@@ -258,6 +266,11 @@ Dunkelheit. Nach Alarmende oder spätestens nach der eingestellten Zeit wird der
 
 Meldet abhängig davon zurück, ob eine Person in einer Zone ist, z. B. „zu Hause → Zusage“ oder
 „Urlaub/außerhalb → Absage“. Jeder Fall kann auch auf „Nichts tun“ stehen.
+
+Mit **Nur bei Alarm für diese Einheit** (z. B. deine Favoriten-Einheit) meldet der Blueprint nur zurück, wenn diese
+Einheit mitalarmiert ist. Weil aPager PRO je Einheit einen eigenen Webhook schickt, wartet er dafür bis zu 30 Sekunden
+nach dem ersten Webhook. Die Rückmeldung selbst gilt trotzdem für alle Alarme der letzten 3 Minuten (siehe Hinweis bei
+der Alamos API).
 
 ## Weitere Beispiel-Automationen
 

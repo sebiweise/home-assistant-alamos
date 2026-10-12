@@ -326,6 +326,51 @@ async def test_presence_feedback_none(
     assert aioclient_mock.mock_calls == []
 
 
+@pytest.mark.parametrize(
+    ("units", "expected_calls"),
+    [(["LZ1", "LZ2"], 1), (["LZ1"], 0)],
+)
+async def test_presence_feedback_unit(
+    hass: HomeAssistant,
+    hass_client_no_auth,
+    aioclient_mock,
+    freezer,
+    units: list[str],
+    expected_calls: int,
+) -> None:
+    """Feedback is only sent if the required unit is alarmed, even later."""
+    entry = await _setup(hass)
+    aioclient_mock.get(FEEDBACK_URL, status=200)
+    hass.states.async_set("zone.home", "1", {"persons": ["person.max"]})
+
+    await _setup_automation(
+        hass,
+        "presence_feedback",
+        {
+            "alamos_entry": entry.entry_id,
+            "person": "person.max",
+            "unit": " lz2 ",
+            "delay": 0,
+        },
+    )
+    client = await hass_client_no_auth()
+    for unit in units:
+        resp = await client.get(
+            f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "B3", "unit": unit}
+        )
+        assert resp.status == HTTPStatus.OK
+
+    if expected_calls:
+        await _wait_for(lambda: len(aioclient_mock.mock_calls) == 1)
+    else:
+        freezer.tick(timedelta(seconds=31))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+    assert len(aioclient_mock.mock_calls) == expected_calls
+    state = hass.states.get("automation.presence_feedback")
+    assert state.attributes.get("current", 0) == 0
+
+
 async def test_alarm_lights(hass: HomeAssistant, hass_client_no_auth) -> None:
     """Lights are switched on and restored when the alarm ends."""
     await _setup(hass)
