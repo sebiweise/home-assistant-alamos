@@ -29,10 +29,12 @@
           "unit_param": "Parameter name for the unit",
           "api_url": "API base URL",
           "unit_filter": "Unit filter",
+          "favorite_unit": "Favorite unit",
           "test_keywords": "Test alarm keywords"
         },
         "data_description": {
           "unit_filter": "Only process alarms of these units (case-insensitive). Empty = all. Alarms without a unit are always processed.",
+          "favorite_unit": "If several units are alerted, this unit is always listed first and used as the main unit (case-insensitive).",
           "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
           "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL."
         }
@@ -92,7 +94,15 @@
         "name": "Keyword"
       },
       "unit": {
-        "name": "Unit"
+        "name": "Unit",
+        "state_attributes": {
+          "unit": {
+            "name": "Unit"
+          },
+          "units": {
+            "name": "Units"
+          }
+        }
       },
       "last_alarm": {
         "name": "Last alarm"

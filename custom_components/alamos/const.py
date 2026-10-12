@@ -30,6 +30,7 @@ CONF_KEYWORD_PARAM: Final = "keyword_param"
 CONF_UNIT_PARAM: Final = "unit_param"
 CONF_UNIT_FILTER: Final = "unit_filter"
 CONF_TEST_KEYWORDS: Final = "test_keywords"
+CONF_FAVORITE_UNIT: Final = "favorite_unit"
 
 DEFAULT_RESET_MINUTES: Final = 30
 DEFAULT_KEYWORD_PARAM: Final = "keyword"

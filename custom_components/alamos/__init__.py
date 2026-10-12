@@ -35,6 +35,7 @@ from .const import (
     ATTR_SUPPRESS_NOTIFICATION,
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_FAVORITE_UNIT,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
     CONF_WEBHOOK_ID,
@@ -87,7 +88,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
     """Set up Alamos from a config entry."""
     options = entry.options
     manager = AlamosAlarmManager(
-        hass, int(options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES))
+        hass,
+        int(options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES)),
+        options.get(CONF_FAVORITE_UNIT) or None,
     )
 
     client: AlamosApiClient | None = None

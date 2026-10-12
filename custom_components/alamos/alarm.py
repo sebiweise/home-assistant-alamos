@@ -56,11 +56,17 @@ class AlarmState:
 class AlamosAlarmManager:
     """Keep track of incoming alarms and notify entities."""
 
-    def __init__(self, hass: HomeAssistant, reset_minutes: int) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        reset_minutes: int,
+        favorite_unit: str | None = None,
+    ) -> None:
         """Initialize the manager."""
         self.hass = hass
         self.state = AlarmState()
         self._reset_minutes = reset_minutes
+        self._favorite_unit = favorite_unit
         self._listeners: list[Callable[[], None]] = []
         self._event_listeners: list[Callable[[str, dict[str, Any]], None]] = []
         self._cancel_reset: CALLBACK_TYPE | None = None
@@ -105,7 +111,9 @@ class AlamosAlarmManager:
         """Handle a new alarm.
 
         Returns False if the webhook was merged into the active alarm because
-        aPager PRO sent it for another unit of the same alarm.
+        aPager PRO sent it for another unit of the same alarm. Webhooks without
+        a keyword (e.g. a unit whose webhook does not transmit it) are merged
+        too, so they cannot overwrite the keyword of the running alarm.
         """
         state = self.state
         now = dt_util.utcnow()
@@ -113,11 +121,16 @@ class AlamosAlarmManager:
             state.active
             and state.last_alarm is not None
             and now - state.last_alarm <= MERGE_WINDOW
-            and _same_keyword(state.keyword, keyword)
+            and (
+                keyword is None
+                or state.keyword is None
+                or _same_keyword(state.keyword, keyword)
+            )
         ):
+            state.keyword = state.keyword or keyword
             if unit and unit not in state.units:
-                state.units.append(unit)
-            state.unit = state.unit or unit
+                state.units = self._sort_units([*state.units, unit])
+            state.unit = state.units[0] if state.units else None
             self._notify()
             return False
 
@@ -132,6 +145,13 @@ class AlamosAlarmManager:
         self._schedule_reset()
         self._notify(event_type, _event_data(keyword, unit, data, test=False))
         return True
+
+    def _sort_units(self, units: list[str]) -> list[str]:
+        """Put the favorite unit first, keep the order of the others."""
+        if not self._favorite_unit:
+            return units
+        favorite = self._favorite_unit.casefold()
+        return sorted(units, key=lambda unit: unit.casefold() != favorite)
 
     @callback
     def async_test_alarm(

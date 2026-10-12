@@ -21,6 +21,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_FAVORITE_UNIT,
     CONF_KEYWORD_PARAM,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
@@ -86,6 +87,10 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 default=options.get(CONF_UNIT_FILTER, []),
             ): LIST_SELECTOR,
             vol.Optional(
+                CONF_FAVORITE_UNIT,
+                description={"suggested_value": options.get(CONF_FAVORITE_UNIT)},
+            ): selector.TextSelector(),
+            vol.Optional(
                 CONF_TEST_KEYWORDS,
                 default=options.get(CONF_TEST_KEYWORDS, []),
             ): LIST_SELECTOR,
@@ -117,6 +122,7 @@ def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
     options[CONF_UNIT_PARAM] = (
         options.get(CONF_UNIT_PARAM) or DEFAULT_UNIT_PARAM
     ).strip()
+    options[CONF_FAVORITE_UNIT] = (options.get(CONF_FAVORITE_UNIT) or "").strip()
     options[CONF_API_URL] = (options.get(CONF_API_URL) or DEFAULT_API_URL).strip()
     for key in (CONF_UNIT_FILTER, CONF_TEST_KEYWORDS):
         options[key] = [
