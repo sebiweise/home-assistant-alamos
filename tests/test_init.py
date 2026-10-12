@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.alamos.const import (
     CONF_API_KEY,
+    CONF_FAVORITE_UNIT,
     CONF_RESET_MINUTES,
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
@@ -273,12 +274,14 @@ async def test_options_flow_lists(hass: HomeAssistant) -> None:
             "api_key": "secret",
             "unit_filter": [" LZ1 ", ""],
             "test_keywords": ["Probealarm", "  "],
+            "favorite_unit": " LZ2 ",
         },
     )
     await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_UNIT_FILTER] == ["LZ1"]
     assert entry.options[CONF_TEST_KEYWORDS] == ["Probealarm"]
+    assert entry.options[CONF_FAVORITE_UNIT] == "LZ2"
 
 
 async def test_webhook_recall(hass: HomeAssistant, hass_client_no_auth) -> None:
@@ -407,3 +410,67 @@ async def test_repeated_test_alarm_and_recall(
     assert len(alarms) == 1
     assert alarms[0].data["test"] is True
     assert len(cleared) == 1
+
+
+async def test_webhook_without_keyword_is_merged(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """A unit webhook without keyword does not start a new alarm."""
+    await _setup(hass)
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    resp = await client.get(url, params={"keyword": "BMA", "unit": "LZ1"})
+    assert await resp.text() == "ok"
+    resp = await client.get(url, params={"unit": "LZ2"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+
+    assert len(alarms) == 1
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "BMA"
+    assert hass.states.get("sensor.feuerwehr_unit").state == "LZ1, LZ2"
+    state = hass.states.get("binary_sensor.feuerwehr_alarm")
+    assert state.attributes["keyword"] == "BMA"
+    assert state.attributes["units"] == ["LZ1", "LZ2"]
+
+
+async def test_keyword_of_later_webhook_fills_gap(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """The keyword is taken from a later unit webhook if the first had none."""
+    await _setup(hass)
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    await client.get(url, params={"unit": "LZ1"})
+    resp = await client.get(url, params={"keyword": "BMA", "unit": "LZ2"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+
+    assert len(alarms) == 1
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "BMA"
+
+
+async def test_favorite_unit(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """The favorite unit is always listed first and becomes the main unit."""
+    entry = await _setup(hass)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_FAVORITE_UNIT: "lz2"}
+    )
+    await hass.async_block_till_done()
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    for unit in ("LZ1", "DLK", "LZ2"):
+        await client.get(url, params={"keyword": "B3", "unit": unit})
+    await hass.async_block_till_done()
+
+    unit_sensor = hass.states.get("sensor.feuerwehr_unit")
+    assert unit_sensor.state == "LZ2, LZ1, DLK"
+    assert unit_sensor.attributes["unit"] == "LZ2"
+    assert unit_sensor.attributes["units"] == ["LZ2", "LZ1", "DLK"]
+    state = hass.states.get("binary_sensor.feuerwehr_alarm")
+    assert state.attributes["unit"] == "LZ2"
+    assert state.attributes["units"] == ["LZ2", "LZ1", "DLK"]

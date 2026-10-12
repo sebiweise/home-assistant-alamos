@@ -20,8 +20,11 @@ from homeassistant.helpers.typing import StateType
 
 from . import AlamosConfigEntry
 from .alarm import AlarmState
-from .const import ATTR_DATA, ATTR_UNIT
+from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS
 from .entity import AlamosEntity
+
+# Home Assistant does not accept states longer than 255 characters.
+MAX_STATE_LENGTH = 255
 
 FEEDBACK_RESULTS = [
     "success",
@@ -46,12 +49,17 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
         key="keyword",
         translation_key="keyword",
         value_fn=lambda state: state.keyword,
-        attrs_fn=lambda state: {ATTR_UNIT: state.unit, ATTR_DATA: state.data},
+        attrs_fn=lambda state: {
+            ATTR_UNIT: state.unit,
+            ATTR_UNITS: state.units,
+            ATTR_DATA: state.data,
+        },
     ),
     AlamosSensorEntityDescription(
         key="unit",
         translation_key="unit",
-        value_fn=lambda state: state.unit,
+        value_fn=lambda state: _units_text(state),
+        attrs_fn=lambda state: {ATTR_UNIT: state.unit, ATTR_UNITS: state.units},
     ),
     AlamosSensorEntityDescription(
         key="last_alarm",
@@ -83,6 +91,16 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
         ),
     ),
 )
+
+
+def _units_text(state: AlarmState) -> str | None:
+    """Return all alarmed units, the favorite / first one leading."""
+    if not state.units:
+        return state.unit
+    text = ", ".join(state.units)
+    if len(text) > MAX_STATE_LENGTH:
+        text = text[: MAX_STATE_LENGTH - 1] + "…"
+    return text
 
 
 # Home Assistant requires this exact coroutine signature.

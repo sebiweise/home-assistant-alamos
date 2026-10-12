@@ -57,6 +57,7 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Bestätigungs-Push unterdrücken | Standardwert für `suppress_notification` |
 | Alarm automatisch zurücksetzen | Minuten bis zum automatischen Zurücksetzen (0 = nie, z. B. bei AMweb mit „kein Alarm mehr offen“-URL) |
 | Einheiten-Filter | Nur Alarme dieser Einheiten verarbeiten, z. B. `LZ1`, `Florian Musterhausen 1/44` (Groß-/Kleinschreibung egal). Alarme ohne übermittelte Einheit werden immer verarbeitet, damit kein echter Alarm verloren geht |
+| Favoriten-Einheit | Werden mehrere Einheiten alarmiert, steht diese Einheit immer an erster Stelle (Sensor „Einheit“, Attribute `unit` und `units`), egal in welcher Reihenfolge die Webhooks ankommen. Groß-/Kleinschreibung egal |
 | Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
 | API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
@@ -94,8 +95,12 @@ Der aPager PRO löst Webhooks nur bei echten Alarmen aus (Reiter „Alarm“), n
 
 **Mehrere Einheiten:** Seit aPager PRO Android 6.9.0 wird der Webhook für jede gleichzeitig alarmierte Einheit
 einzeln aufgerufen. Die Integration fasst Webhooks mit gleichem Stichwort, die innerhalb von 30 Sekunden eintreffen,
-zu **einem** Alarm zusammen. Event, Benachrichtigung und Zähler kommen also nur einmal, alle Einheiten stehen im Attribut
-`units` des Alarm-Sensors. Das Event `alamos_alarm` enthält nur die zuerst gemeldete Einheit, weil es sofort ausgelöst wird.
+zu **einem** Alarm zusammen. Webhooks ohne Stichwort (z. B. weil „Stichwort übertragen“ nur bei einer Einheit aktiv ist)
+werden dabei ebenfalls dem laufenden Alarm zugeordnet und überschreiben dessen Stichwort nicht. Event, Benachrichtigung und
+Zähler kommen also nur einmal. Der Sensor „Einheit“ zeigt alle alarmierten Einheiten, z. B. `LZ1, DLK`, die
+**Favoriten-Einheit** (siehe Optionen) immer vorne; dieselbe Liste steht im Attribut `units`. Das Event `alamos_alarm`
+enthält nur die zuerst gemeldete Einheit, weil es sofort ausgelöst wird. Wer auf alle Einheiten reagieren will, nimmt
+eine Zustandsänderung des Einheiten-Sensors als Auslöser.
 Probealarme und Rückalarme mehrerer Einheiten werden ebenfalls nur einmal gemeldet.
 
 **Kommt nichts an?**
@@ -178,7 +183,7 @@ Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zur�
 | `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
 | `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (bei `event=recall` mit `recall: true`, `keyword`, `unit`, `data`) |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
-| `sensor.<name>_unit` | Einheit des letzten Alarms |
+| `sensor.<name>_unit` | Alle Einheiten des letzten Alarms, Favoriten-Einheit zuerst (z. B. `LZ2, LZ1`). Attribute: `unit` (Haupteinheit), `units` (Liste) |
 | `sensor.<name>_last_alarm` | Zeitpunkt des letzten Alarms |
 | `sensor.<name>_alarm_count` | Anzahl empfangener Alarme (Diagnose) |
 | `sensor.<name>_last_feedback` | Ergebnis der letzten API-Rückmeldung *(nur mit API-Schlüssel)* |
