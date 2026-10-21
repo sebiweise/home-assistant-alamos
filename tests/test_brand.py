@@ -25,9 +25,12 @@ def _brand_files(prefix: str) -> list[Path]:
     )
 
 
-def test_icon_is_present() -> None:
-    """HACS validates the brand assets through brand/icon.png."""
-    assert (BRAND_DIR / "icon.png").is_file()
+@pytest.mark.parametrize(
+    "name", ["icon.png", "icon@2x.png", "dark_icon.png", "dark_icon@2x.png"]
+)
+def test_icon_is_present(name: str) -> None:
+    """HACS validates the brand assets through brand/icon.png (plus hDPI)."""
+    assert (BRAND_DIR / name).is_file()
 
 
 @pytest.mark.parametrize("path", _brand_files("icon"), ids=lambda path: path.name)
