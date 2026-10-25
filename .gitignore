@@ -8,3 +8,6 @@ venv/
 # Local Home Assistant development instance
 config/*
 !config/configuration.yaml
+
+# graphify knowledge graph (rebuilt by scripts/graphify)
+graphify-out/
