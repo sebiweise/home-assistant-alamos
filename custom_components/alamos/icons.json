@@ -15,6 +15,7 @@
       "unit": { "default": "mdi:account-group" },
       "last_alarm": { "default": "mdi:clock-alert" },
       "alarm_count": { "default": "mdi:counter" },
+      "webhook_alarm_count": { "default": "mdi:counter" },
       "last_feedback": { "default": "mdi:reply" }
     }
   },

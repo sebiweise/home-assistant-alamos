@@ -19,11 +19,15 @@ FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 # aPager PRO Android (6.9.0+) calls the webhook once per alarmed unit. Webhooks
 # with the same keyword arriving within this window belong to the same alarm.
 MERGE_WINDOW: Final = timedelta(seconds=30)
+# aPager PRO supports up to five general webhooks.
+MAX_WEBHOOKS: Final = 5
 
 # Config entry data / options
 CONF_API_KEY: Final = "api_key"
 CONF_API_URL: Final = "api_url"
 CONF_WEBHOOK_ID: Final = "webhook_id"
+CONF_ADDITIONAL_WEBHOOK_IDS: Final = "additional_webhook_ids"
+CONF_WEBHOOK_COUNT: Final = "webhook_count"
 CONF_SUPPRESS_NOTIFICATION: Final = "suppress_notification"
 CONF_RESET_MINUTES: Final = "reset_minutes"
 CONF_KEYWORD_PARAM: Final = "keyword_param"
@@ -33,6 +37,7 @@ CONF_TEST_KEYWORDS: Final = "test_keywords"
 CONF_FAVORITE_UNIT: Final = "favorite_unit"
 
 DEFAULT_RESET_MINUTES: Final = 30
+DEFAULT_WEBHOOK_COUNT: Final = 1
 DEFAULT_KEYWORD_PARAM: Final = "keyword"
 DEFAULT_UNIT_PARAM: Final = "unit"
 
@@ -69,4 +74,5 @@ ATTR_DATA: Final = "data"
 ATTR_SOURCE: Final = "source"
 ATTR_TEST: Final = "test"
 ATTR_RECALL: Final = "recall"
+ATTR_WEBHOOK: Final = "webhook"
 ATTR_FEEDBACK_DEADLINE: Final = "feedback_deadline"
