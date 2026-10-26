@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 import logging
 from typing import Any
 
@@ -33,6 +34,7 @@ from .const import (
     ATTR_CONFIG_ENTRY_ID,
     ATTR_MODE,
     ATTR_SUPPRESS_NOTIFICATION,
+    CONF_ADDITIONAL_WEBHOOK_IDS,
     CONF_API_KEY,
     CONF_API_URL,
     CONF_AVAILABILITY_CALENDARS,
@@ -40,14 +42,17 @@ from .const import (
     CONF_FAVORITE_UNIT,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
+    CONF_WEBHOOK_COUNT,
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
     DEFAULT_RESET_MINUTES,
+    DEFAULT_WEBHOOK_COUNT,
     DOMAIN,
     EVENT_ALARM,
     EVENT_ALARM_CLEARED,
     EVENT_TYPE_CLEARED,
     FEEDBACK_MODES,
+    MAX_WEBHOOKS,
     SERVICE_RESET_ALARM,
     SERVICE_SEND_FEEDBACK,
 )
@@ -117,25 +122,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
     entry.async_on_unload(manager.async_shutdown)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    webhook_id = entry.data[CONF_WEBHOOK_ID]
-    webhook.async_register(
-        hass,
-        DOMAIN,
-        f"Alamos {entry.title}",
-        webhook_id,
-        async_create_webhook_handler(entry),
-        local_only=False,
-        allowed_methods=["GET", "POST", "PUT"],
-    )
-    entry.async_on_unload(lambda: webhook.async_unregister(hass, webhook_id))
-
-    if CONF_CALENDAR_WEBHOOK_ID not in entry.data:
-        # Entries created before the availability feed existed.
-        hass.config_entries.async_update_entry(
-            entry,
-            data={**entry.data, CONF_CALENDAR_WEBHOOK_ID: webhook.async_generate_id()},
+    # All webhooks stay registered, so a URL still set in the app never loses
+    # an alarm when the number of webhooks is reduced.
+    for number, webhook_id in enumerate(entry_webhook_ids(entry), start=1):
+        webhook.async_register(
+            hass,
+            DOMAIN,
+            f"Alamos {entry.title} ({number})",
+            webhook_id,
+            async_create_webhook_handler(entry, number),
+            local_only=False,
+            allowed_methods=["GET", "POST", "PUT"],
         )
+        entry.async_on_unload(partial(webhook.async_unregister, hass, webhook_id))
+
     if options.get(CONF_AVAILABILITY_CALENDARS):
         calendar_webhook_id = entry.data[CONF_CALENDAR_WEBHOOK_ID]
         webhook.async_register(
@@ -148,12 +148,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
             allowed_methods=["GET"],
         )
         entry.async_on_unload(
-            lambda: webhook.async_unregister(hass, calendar_webhook_id)
+            partial(webhook.async_unregister, hass, calendar_webhook_id)
         )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     return True
+
+
+# Home Assistant requires this exact coroutine signature.
+async def async_migrate_entry(  # NOSONAR
+    hass: HomeAssistant, entry: AlamosConfigEntry
+) -> bool:
+    """Migrate an old config entry."""
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={
+                **entry.data,
+                CONF_ADDITIONAL_WEBHOOK_IDS: [
+                    webhook.async_generate_id() for _ in range(MAX_WEBHOOKS - 1)
+                ],
+            },
+            minor_version=2,
+        )
+    if entry.minor_version < 3:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={**entry.data, CONF_CALENDAR_WEBHOOK_ID: webhook.async_generate_id()},
+            minor_version=3,
+        )
+    return True
+
+
+def entry_webhook_ids(entry: ConfigEntry) -> list[str]:
+    """Return the IDs of all webhooks, webhook 1 first."""
+    return [entry.data[CONF_WEBHOOK_ID], *entry.data[CONF_ADDITIONAL_WEBHOOK_IDS]]
+
+
+def entry_webhook_count(entry: ConfigEntry) -> int:
+    """Return the number of webhooks with their own alarm count."""
+    return int(entry.options.get(CONF_WEBHOOK_COUNT, DEFAULT_WEBHOOK_COUNT))
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bool:
