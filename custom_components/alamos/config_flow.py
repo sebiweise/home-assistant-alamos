@@ -18,7 +18,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 
+from . import entry_webhook_ids
 from .const import (
+    CONF_ADDITIONAL_WEBHOOK_IDS,
     CONF_API_KEY,
     CONF_API_URL,
     CONF_AVAILABILITY_CALENDARS,
@@ -31,12 +33,15 @@ from .const import (
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
     CONF_UNIT_PARAM,
+    CONF_WEBHOOK_COUNT,
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
     DEFAULT_KEYWORD_PARAM,
     DEFAULT_RESET_MINUTES,
     DEFAULT_UNIT_PARAM,
+    DEFAULT_WEBHOOK_COUNT,
     DOMAIN,
+    MAX_WEBHOOKS,
     WEBHOOK_EVENT_PARAM,
 )
 
@@ -56,6 +61,11 @@ MINUTES_SELECTOR = selector.NumberSelector(
         mode=selector.NumberSelectorMode.BOX,
     )
 )
+WEBHOOK_COUNT_SELECTOR = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=1, max=MAX_WEBHOOKS, step=1, mode=selector.NumberSelectorMode.BOX
+    )
+)
 
 
 CALENDAR_SELECTOR = selector.EntitySelector(
@@ -70,12 +80,18 @@ def _webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
         return webhook.async_generate_path(webhook_id)
 
 
-def _webhook_placeholders(hass: HomeAssistant, webhook_id: str) -> dict[str, str]:
-    url = _webhook_url(hass, webhook_id)
+def _webhook_placeholders(
+    hass: HomeAssistant, webhook_ids: list[str]
+) -> dict[str, str]:
+    url = _webhook_url(hass, webhook_ids[0])
     return {
         "webhook_url": url,
         "webhook_clear_url": f"{url}?{WEBHOOK_EVENT_PARAM}=clear",
         "webhook_recall_url": f"{url}?{WEBHOOK_EVENT_PARAM}=recall",
+        "additional_webhooks": "".join(
+            f"\n\nWebhook {number}:\n`{_webhook_url(hass, webhook_id)}`"
+            for number, webhook_id in enumerate(webhook_ids[1:], start=2)
+        ),
     }
 
 
@@ -94,6 +110,10 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 CONF_RESET_MINUTES,
                 default=options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES),
             ): MINUTES_SELECTOR,
+            vol.Optional(
+                CONF_WEBHOOK_COUNT,
+                default=options.get(CONF_WEBHOOK_COUNT, DEFAULT_WEBHOOK_COUNT),
+            ): WEBHOOK_COUNT_SELECTOR,
             vol.Optional(
                 CONF_UNIT_FILTER,
                 default=options.get(CONF_UNIT_FILTER, []),
@@ -136,6 +156,9 @@ def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
     options[CONF_RESET_MINUTES] = int(
         options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES)
     )
+    options[CONF_WEBHOOK_COUNT] = int(
+        options.get(CONF_WEBHOOK_COUNT, DEFAULT_WEBHOOK_COUNT)
+    )
     options[CONF_KEYWORD_PARAM] = (
         options.get(CONF_KEYWORD_PARAM) or DEFAULT_KEYWORD_PARAM
     ).strip()
@@ -158,24 +181,28 @@ class AlamosConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Alamos."""
 
     VERSION = 1
+    MINOR_VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the flow."""
-        self._webhook_id: str | None = None
+        self._webhook_ids: list[str] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle the initial step."""
-        if self._webhook_id is None:
-            self._webhook_id = webhook.async_generate_id()
+        if not self._webhook_ids:
+            self._webhook_ids = [
+                webhook.async_generate_id() for _ in range(MAX_WEBHOOKS)
+            ]
 
         if user_input is not None:
             title = user_input.pop(CONF_NAME).strip() or "Alamos"
             return self.async_create_entry(
                 title=title,
                 data={
-                    CONF_WEBHOOK_ID: self._webhook_id,
+                    CONF_WEBHOOK_ID: self._webhook_ids[0],
+                    CONF_ADDITIONAL_WEBHOOK_IDS: self._webhook_ids[1:],
                     CONF_CALENDAR_WEBHOOK_ID: webhook.async_generate_id(),
                 },
                 options=_clean_options(
@@ -190,7 +217,7 @@ class AlamosConfigFlow(ConfigFlow, domain=DOMAIN):
                     }
                 ),
                 description_placeholders=_webhook_placeholders(
-                    self.hass, self._webhook_id
+                    self.hass, self._webhook_ids[:1]
                 ),
             )
 
@@ -228,7 +255,9 @@ class AlamosOptionsFlow(OptionsFlow):
             return self.async_create_entry(data=_clean_options(user_input))
 
         data = self.config_entry.data
-        placeholders = _webhook_placeholders(self.hass, data[CONF_WEBHOOK_ID])
+        placeholders = _webhook_placeholders(
+            self.hass, entry_webhook_ids(self.config_entry)
+        )
         calendar_webhook_id = data.get(CONF_CALENDAR_WEBHOOK_ID)
         placeholders["calendar_url"] = (
             _webhook_url(self.hass, calendar_webhook_id) if calendar_webhook_id else "-"

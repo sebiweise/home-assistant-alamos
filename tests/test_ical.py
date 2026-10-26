@@ -7,6 +7,7 @@ from typing import Any
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.alamos.const import (
+    CONF_ADDITIONAL_WEBHOOK_IDS,
     CONF_AVAILABILITY_CALENDARS,
     CONF_AVAILABILITY_KEYWORDS,
     CONF_CALENDAR_WEBHOOK_ID,
@@ -70,9 +71,11 @@ async def _setup(
         title="Feuerwehr",
         data={
             CONF_WEBHOOK_ID: WEBHOOK_ID,
+            CONF_ADDITIONAL_WEBHOOK_IDS: [f"test_webhook_{n}" for n in range(2, 6)],
             CONF_CALENDAR_WEBHOOK_ID: CALENDAR_WEBHOOK_ID,
         },
         options=options or {},
+        minor_version=3,
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -169,6 +172,7 @@ async def test_calendar_webhook_id_migration(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
+    assert entry.minor_version == 3
     assert entry.data[CONF_WEBHOOK_ID] == WEBHOOK_ID
     assert entry.data[CONF_CALENDAR_WEBHOOK_ID]
 

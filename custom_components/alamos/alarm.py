@@ -42,6 +42,7 @@ class WebhookInfo:
     """Last webhook call as received, for troubleshooting."""
 
     timestamp: datetime
+    webhook: int
     method: str
     data: dict[str, Any]
     result: str
@@ -60,6 +61,8 @@ class AlarmState:
     last_alarm: datetime | None = None
     last_cleared: datetime | None = None
     alarm_count: int = 0
+    webhook_counts: dict[int, int] = field(default_factory=dict)
+    alarm_webhooks: set[int] = field(default_factory=set)
     feedback: FeedbackState | None = None
     last_webhook: WebhookInfo | None = None
 
@@ -118,6 +121,7 @@ class AlamosAlarmManager:
         data: dict[str, Any],
         source: str,
         event_type: str,
+        webhook: int,
     ) -> bool:
         """Handle a new alarm.
 
@@ -125,6 +129,7 @@ class AlamosAlarmManager:
         aPager PRO sent it for another unit of the same alarm. Webhooks without
         a keyword (e.g. a unit whose webhook does not transmit it) are merged
         too, so they cannot overwrite the keyword of the running alarm.
+        Every webhook counts an alarm once, merged or not.
         """
         state = self.state
         now = dt_util.utcnow()
@@ -142,6 +147,7 @@ class AlamosAlarmManager:
             if unit and unit not in state.units:
                 state.units = self._sort_units([*state.units, unit])
             state.unit = state.units[0] if state.units else None
+            self._count_alarm(webhook)
             self._notify()
             return False
 
@@ -153,9 +159,20 @@ class AlamosAlarmManager:
         state.source = source
         state.last_alarm = now
         state.alarm_count += 1
+        state.alarm_webhooks = set()
+        self._count_alarm(webhook)
         self._schedule_reset()
-        self._notify(event_type, _event_data(keyword, unit, data, test=False))
+        self._notify(
+            event_type, _event_data(keyword, unit, data, test=False, webhook=webhook)
+        )
         return True
+
+    def _count_alarm(self, webhook: int) -> None:
+        state = self.state
+        if webhook in state.alarm_webhooks:
+            return
+        state.alarm_webhooks.add(webhook)
+        state.webhook_counts[webhook] = state.webhook_counts.get(webhook, 0) + 1
 
     def _sort_units(self, units: list[str]) -> list[str]:
         """Put the favorite unit first, keep the order of the others."""
@@ -166,7 +183,11 @@ class AlamosAlarmManager:
 
     @callback
     def async_test_alarm(
-        self, keyword: str | None, unit: str | None, data: dict[str, Any]
+        self,
+        keyword: str | None,
+        unit: str | None,
+        data: dict[str, Any],
+        webhook: int,
     ) -> bool:
         """Handle a test alarm: fire events but keep the alarm state untouched.
 
@@ -174,7 +195,10 @@ class AlamosAlarmManager:
         """
         if self._is_repeat(EVENT_TYPE_TEST_ALARM, keyword):
             return False
-        self._notify(EVENT_TYPE_TEST_ALARM, _event_data(keyword, unit, data, test=True))
+        self._notify(
+            EVENT_TYPE_TEST_ALARM,
+            _event_data(keyword, unit, data, test=True, webhook=webhook),
+        )
         return True
 
     @callback
@@ -235,21 +259,34 @@ class AlamosAlarmManager:
 
     @callback
     def async_webhook_received(
-        self, method: str, data: dict[str, Any], result: str
+        self, webhook: int, method: str, data: dict[str, Any], result: str
     ) -> None:
         """Store the last webhook call, whatever it was used for."""
         self.state.last_webhook = WebhookInfo(
-            timestamp=dt_util.utcnow(), method=method, data=data, result=result
+            timestamp=dt_util.utcnow(),
+            webhook=webhook,
+            method=method,
+            data=data,
+            result=result,
         )
         self._notify()
 
     @callback
     def async_restore(
-        self, alarm_count: int | None = None, last_alarm: datetime | None = None
+        self,
+        alarm_count: int | None = None,
+        last_alarm: datetime | None = None,
+        webhook: int | None = None,
     ) -> None:
-        """Restore values which should survive a restart."""
-        if alarm_count is not None and self.state.alarm_count == 0:
-            self.state.alarm_count = alarm_count
+        """Restore values which should survive a restart.
+
+        With ``webhook``, ``alarm_count`` is the count of that webhook.
+        """
+        if alarm_count is not None:
+            if webhook is not None:
+                self.state.webhook_counts.setdefault(webhook, alarm_count)
+            elif self.state.alarm_count == 0:
+                self.state.alarm_count = alarm_count
         if last_alarm is not None and self.state.last_alarm is None:
             self.state.last_alarm = last_alarm
 
@@ -289,7 +326,12 @@ def _same_keyword(first: str | None, second: str | None) -> bool:
 
 
 def _event_data(
-    keyword: str | None, unit: str | None, data: dict[str, Any], *, test: bool
+    keyword: str | None,
+    unit: str | None,
+    data: dict[str, Any],
+    *,
+    test: bool,
+    webhook: int,
 ) -> dict[str, Any]:
     """Build the data passed to event listeners."""
     return {
@@ -298,5 +340,6 @@ def _event_data(
         "units": [unit] if unit else [],
         "data": data,
         "test": test,
+        "webhook": webhook,
         "feedback_deadline": (dt_util.utcnow() + FEEDBACK_WINDOW).isoformat(),
     }
