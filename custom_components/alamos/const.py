@@ -19,11 +19,14 @@ FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 # aPager PRO Android (6.9.0+) calls the webhook once per alarmed unit. Webhooks
 # with the same keyword arriving within this window belong to the same alarm.
 MERGE_WINDOW: Final = timedelta(seconds=30)
+# aPager PRO imports iCal entries up to 6 months ahead.
+AVAILABILITY_FEED_PERIOD: Final = timedelta(days=183)
 
 # Config entry data / options
 CONF_API_KEY: Final = "api_key"
 CONF_API_URL: Final = "api_url"
 CONF_WEBHOOK_ID: Final = "webhook_id"
+CONF_CALENDAR_WEBHOOK_ID: Final = "calendar_webhook_id"
 CONF_SUPPRESS_NOTIFICATION: Final = "suppress_notification"
 CONF_RESET_MINUTES: Final = "reset_minutes"
 CONF_KEYWORD_PARAM: Final = "keyword_param"
@@ -31,6 +34,8 @@ CONF_UNIT_PARAM: Final = "unit_param"
 CONF_UNIT_FILTER: Final = "unit_filter"
 CONF_TEST_KEYWORDS: Final = "test_keywords"
 CONF_FAVORITE_UNIT: Final = "favorite_unit"
+CONF_AVAILABILITY_CALENDARS: Final = "availability_calendars"
+CONF_AVAILABILITY_KEYWORDS: Final = "availability_keywords"
 
 DEFAULT_RESET_MINUTES: Final = 30
 DEFAULT_KEYWORD_PARAM: Final = "keyword"

@@ -35,6 +35,8 @@ from .const import (
     ATTR_SUPPRESS_NOTIFICATION,
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_AVAILABILITY_CALENDARS,
+    CONF_CALENDAR_WEBHOOK_ID,
     CONF_FAVORITE_UNIT,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
@@ -49,6 +51,7 @@ from .const import (
     SERVICE_RESET_ALARM,
     SERVICE_SEND_FEEDBACK,
 )
+from .ical import async_create_calendar_handler
 from .receiver import async_create_webhook_handler
 
 _LOGGER = logging.getLogger(__name__)
@@ -126,6 +129,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         allowed_methods=["GET", "POST", "PUT"],
     )
     entry.async_on_unload(lambda: webhook.async_unregister(hass, webhook_id))
+
+    if CONF_CALENDAR_WEBHOOK_ID not in entry.data:
+        # Entries created before the availability feed existed.
+        hass.config_entries.async_update_entry(
+            entry,
+            data={**entry.data, CONF_CALENDAR_WEBHOOK_ID: webhook.async_generate_id()},
+        )
+    if options.get(CONF_AVAILABILITY_CALENDARS):
+        calendar_webhook_id = entry.data[CONF_CALENDAR_WEBHOOK_ID]
+        webhook.async_register(
+            hass,
+            DOMAIN,
+            f"Alamos {entry.title} availability",
+            calendar_webhook_id,
+            async_create_calendar_handler(entry),
+            local_only=False,
+            allowed_methods=["GET"],
+        )
+        entry.async_on_unload(
+            lambda: webhook.async_unregister(hass, calendar_webhook_id)
+        )
+
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     return True

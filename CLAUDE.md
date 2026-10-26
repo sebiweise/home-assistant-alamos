@@ -15,6 +15,8 @@ let an alarm through rather than drop it.
 - `alarm.py`: `AlamosAlarmManager` (alarm state, listeners, auto reset,
   merging of webhooks per alarm, feedback deadline)
 - `api.py`: `AlamosApiClient` for the feedback API and its errors
+- `ical.py`: optional iCal feed of HA calendars for the aPager PRO
+  availability (second webhook, `calendar_webhook_id` in `entry.data`)
 - `config_flow.py`: config and options flow (options in `entry.options`,
   webhook ID in `entry.data`)
 - Entities: `binary_sensor.py`, `event.py`, `sensor.py`, `button.py`, shared
@@ -22,7 +24,7 @@ let an alarm through rather than drop it.
 - `strings.json`, `translations/{en,de}.json`, `services.yaml`, `icons.json`,
   `brand/`
 - Blueprints: `blueprints/automation/alamos/`
-- Tests: `tests/test_init.py`, `tests/test_blueprints.py` (blueprints run in
+- Tests: `tests/test_init.py`, `tests/test_ical.py`, `tests/test_blueprints.py` (blueprints run in
   Home Assistant), `tests/test_brand.py`
 
 ## Workflow
