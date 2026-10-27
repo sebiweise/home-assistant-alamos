@@ -219,6 +219,7 @@ Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zur�
 | `sensor.<name>_last_feedback` | Ergebnis der letzten API-Rückmeldung *(nur mit API-Schlüssel)* |
 | `button.<name>_accept_alarm` | Alarm zusagen *(nur mit API-Schlüssel)* |
 | `button.<name>_reject_alarm` | Alarm absagen *(nur mit API-Schlüssel)* |
+| `button.<name>_reset_alarm_count` | Setzt den Alarmzähler und alle Webhook-Zähler auf 0 *(Konfiguration)* |
 
 ## Services
 
@@ -236,6 +237,18 @@ response_variable: result # optional: {"results": [{"status": 200, "result": "su
 ### `alamos.reset_alarm`
 
 Setzt den Alarm-Sensor zurück (optional `config_entry_id`).
+
+### `alamos.reset_alarm_count`
+
+Setzt den Alarmzähler und alle Webhook-Zähler auf 0, z. B. per Automation zum Jahreswechsel. Mit `webhook` wird nur
+der Zähler dieses Webhooks zurückgesetzt, der Alarmzähler bleibt dann unverändert.
+
+```yaml
+action: alamos.reset_alarm_count
+data:
+  webhook: 2              # optional, 1-5
+  config_entry_id: abc123 # optional, sonst alle Einträge
+```
 
 ## Events
 

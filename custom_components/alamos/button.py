@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -32,6 +33,11 @@ BUTTONS: tuple[AlamosButtonEntityDescription, ...] = (
         mode=FEEDBACK_MODE_REJECT,
     ),
 )
+RESET_ALARM_COUNT = ButtonEntityDescription(
+    key="reset_alarm_count",
+    translation_key="reset_alarm_count",
+    entity_category=EntityCategory.CONFIG,
+)
 
 
 # Home Assistant requires this exact coroutine signature.
@@ -40,10 +46,11 @@ async def async_setup_entry(  # NOSONAR
     entry: AlamosConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the feedback buttons if an API key is configured."""
-    if entry.runtime_data.client is None:
-        return
-    async_add_entities(AlamosFeedbackButton(entry, desc) for desc in BUTTONS)
+    """Set up the buttons, the feedback buttons only with an API key."""
+    entities: list[ButtonEntity] = [AlamosResetCountButton(entry, RESET_ALARM_COUNT)]
+    if entry.runtime_data.client is not None:
+        entities.extend(AlamosFeedbackButton(entry, desc) for desc in BUTTONS)
+    async_add_entities(entities)
 
 
 class AlamosFeedbackButton(AlamosEntity, ButtonEntity):
@@ -64,3 +71,14 @@ class AlamosFeedbackButton(AlamosEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Send the feedback."""
         await async_send_feedback(self._entry, self.entity_description.mode)
+
+
+class AlamosResetCountButton(AlamosEntity, ButtonEntity):
+    """Reset the alarm count and all webhook counts."""
+
+    async def async_added_to_hass(self) -> None:
+        """Buttons have no state that depends on the alarm."""
+
+    async def async_press(self) -> None:
+        """Reset the counts."""
+        self.manager.async_reset_count()
