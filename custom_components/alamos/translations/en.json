@@ -92,6 +92,18 @@
             }
           }
         }
+      },
+      "webhook_alarm_event": {
+        "name": "Alarm event webhook {number}",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "alarm": "Alarm",
+              "test_alarm": "Test alarm",
+              "cleared": "Cleared"
+            }
+          }
+        }
       }
     },
     "sensor": {
