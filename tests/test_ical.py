@@ -163,7 +163,7 @@ async def test_feed_calendar_timeout(hass: HomeAssistant, hass_client_no_auth) -
     await _setup(hass, {CONF_AVAILABILITY_CALENDARS: [CALENDAR]})
     client = await hass_client_no_auth()
 
-    with patch("custom_components.alamos.ical.CALENDAR_TIMEOUT", 0.01):
+    with patch("custom_components.alamos.ical.CALENDAR_TIMEOUT", 0):
         resp = await client.get(f"/api/webhook/{CALENDAR_WEBHOOK_ID}")
     assert resp.status == HTTPStatus.SERVICE_UNAVAILABLE
     blocked.set()
