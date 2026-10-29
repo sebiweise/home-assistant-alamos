@@ -1,8 +1,10 @@
 """Tests for the iCal availability feed."""
 
+import asyncio
 from datetime import datetime
 from http import HTTPStatus
 from typing import Any
+from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -137,6 +139,27 @@ async def test_feed_calendar_error(hass: HomeAssistant, hass_client_no_auth) -> 
 
     resp = await client.get(f"/api/webhook/{CALENDAR_WEBHOOK_ID}")
     assert resp.status == HTTPStatus.SERVICE_UNAVAILABLE
+
+
+async def test_feed_calendar_timeout(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test a hanging calendar returns an error instead of blocking the app."""
+    hass.states.async_set(CALENDAR, "off")
+    blocked = asyncio.Event()
+
+    async def _get_events(call: ServiceCall) -> ServiceResponse:
+        await blocked.wait()
+        return {}
+
+    hass.services.async_register(
+        "calendar", "get_events", _get_events, supports_response=SupportsResponse.ONLY
+    )
+    await _setup(hass, {CONF_AVAILABILITY_CALENDARS: [CALENDAR]})
+    client = await hass_client_no_auth()
+
+    with patch("custom_components.alamos.ical.CALENDAR_TIMEOUT", 0.01):
+        resp = await client.get(f"/api/webhook/{CALENDAR_WEBHOOK_ID}")
+    assert resp.status == HTTPStatus.SERVICE_UNAVAILABLE
+    blocked.set()
 
 
 async def test_feed_removed_calendar(hass: HomeAssistant, hass_client_no_auth) -> None:

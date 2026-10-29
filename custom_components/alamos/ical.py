@@ -12,6 +12,7 @@ empty calendar, so the app keeps the entries of its last successful sync.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import date, datetime
 from hashlib import sha1
@@ -38,6 +39,8 @@ CONTENT_TYPE = "text/calendar"
 PRODID = "-//home-assistant-alamos//Availability//EN"
 # RFC 5545 3.1: content lines should not be longer than 75 octets.
 MAX_LINE_OCTETS = 75
+# A hanging calendar must not keep the request of the app open.
+CALENDAR_TIMEOUT = 30
 
 
 class CalendarUnavailableError(HomeAssistantError):
@@ -146,17 +149,20 @@ async def async_get_calendar_events(
             )
             continue
         try:
-            response = await hass.services.async_call(
-                "calendar",
-                "get_events",
-                {
-                    "entity_id": entity_id,
-                    "start_date_time": start,
-                    "end_date_time": end,
-                },
-                blocking=True,
-                return_response=True,
-            )
+            async with asyncio.timeout(CALENDAR_TIMEOUT):
+                response = await hass.services.async_call(
+                    "calendar",
+                    "get_events",
+                    {
+                        "entity_id": entity_id,
+                        "start_date_time": start,
+                        "end_date_time": end,
+                    },
+                    blocking=True,
+                    return_response=True,
+                )
+        except TimeoutError as err:
+            raise CalendarUnavailableError(f"{entity_id}: timeout") from err
         except HomeAssistantError as err:
             raise CalendarUnavailableError(f"{entity_id}: {err}") from err
         result = (response or {}).get(entity_id)
@@ -178,6 +184,7 @@ def async_create_calendar_handler(
     async def _async_handle(
         hass: HomeAssistant, webhook_id: str, request: web.Request
     ) -> web.Response:
+        """Serve the feed, or HTTP 503 if a calendar cannot be read."""
         try:
             events = await async_get_calendar_events(
                 hass,
