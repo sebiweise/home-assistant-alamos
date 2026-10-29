@@ -16,14 +16,13 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from . import AlamosConfigEntry, entry_webhook_count
+from . import AlamosConfigEntry
 from .alarm import AlarmState
-from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK, DOMAIN, MAX_WEBHOOKS
-from .entity import AlamosEntity
+from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK
+from .entity import AlamosEntity, async_remove_webhook_entities, webhook_entity_numbers
 
 # Home Assistant does not accept states longer than 255 characters.
 MAX_STATE_LENGTH = 255
@@ -153,25 +152,10 @@ async def async_setup_entry(  # NOSONAR
         for description in SENSORS
         if has_api or not description.requires_api
     ]
-    webhook_count = entry_webhook_count(entry)
-    counted = webhook_count if webhook_count > 1 else 0
-    descriptions.extend(
-        _webhook_alarm_count(number) for number in range(1, counted + 1)
-    )
-    _async_remove_webhook_counts(hass, entry, range(counted + 1, MAX_WEBHOOKS + 1))
+    numbers = webhook_entity_numbers(entry)
+    descriptions.extend(_webhook_alarm_count(number) for number in numbers)
+    async_remove_webhook_entities(hass, entry, SENSOR_DOMAIN, "alarm_count", numbers)
     async_add_entities(AlamosSensor(entry, description) for description in descriptions)
-
-
-def _async_remove_webhook_counts(
-    hass: HomeAssistant, entry: AlamosConfigEntry, numbers: range
-) -> None:
-    """Remove the count sensors of webhooks which are not counted anymore."""
-    registry = er.async_get(hass)
-    for number in numbers:
-        if entity_id := registry.async_get_entity_id(
-            SENSOR_DOMAIN, DOMAIN, f"{entry.entry_id}_alarm_count_{number}"
-        ):
-            registry.async_remove(entity_id)
 
 
 class AlamosSensor(AlamosEntity, RestoreSensor):

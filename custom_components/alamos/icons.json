@@ -9,7 +9,8 @@
       "reset_alarm_count": { "default": "mdi:counter" }
     },
     "event": {
-      "webhook": { "default": "mdi:webhook" }
+      "webhook": { "default": "mdi:webhook" },
+      "webhook_alarm_event": { "default": "mdi:webhook" }
     },
     "sensor": {
       "keyword": { "default": "mdi:fire-alert" },

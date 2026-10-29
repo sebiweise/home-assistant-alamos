@@ -81,10 +81,31 @@ hat dafür 5 Webhook-URLs, die immer aktiv sind; die Optionen zeigen alle an. `?
 funktionieren mit jeder davon.
 
 Alle Webhooks teilen sich den Alarm-Sensor und die Einstellungen. Mit **Anzahl Webhooks** in den Optionen legst du fest,
-für wie viele Webhooks es einen eigenen Zähler `sensor.<name>_alarm_count_webhook_<n>` gibt (ab 2). Ein Webhook zählt
-jeden Alarm einmal, auch wenn er in einen laufenden Alarm zusammengefasst wird. `sensor.<name>_alarm_count` zählt
-weiterhin jeden Alarm genau einmal, egal über wie viele Webhooks er kam. Verringerst du die Anzahl, werden die Zähler
-der weggefallenen Webhooks entfernt; ihre URLs nehmen aber weiter Alarme an.
+für wie viele Webhooks es eigene Entitäten gibt (ab 2): einen Zähler `sensor.<name>_alarm_count_webhook_<n>` und eine
+Event-Entität `event.<name>_alarm_event_webhook_<n>`. Ein Webhook zählt jeden Alarm einmal, auch wenn er in einen
+laufenden Alarm zusammengefasst wird. `sensor.<name>_alarm_count` zählt weiterhin jeden Alarm genau einmal, egal über
+wie viele Webhooks er kam. Verringerst du die Anzahl, werden die Entitäten der weggefallenen Webhooks entfernt; ihre URLs
+nehmen aber weiter Alarme an.
+
+Die Event-Entität eines Webhooks löst aus, sobald dieser Webhook einen Alarm meldet, auch wenn er in einen laufenden
+Alarm zusammengefasst wird. `event.<name>_alarm_event` und das Event `alamos_alarm` kommen dagegen nur einmal je Alarm
+und nennen nur den zuerst eingetroffenen Webhook. Für eine Automation, die auf einen bestimmten Webhook reagieren soll,
+nimmst du daher dessen Event-Entität:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.feuerwehr_alarm_event_webhook_2
+conditions:
+  - condition: state
+    entity_id: event.feuerwehr_alarm_event_webhook_2
+    attribute: event_type
+    state: alarm
+```
+
+Probealarme (`test_alarm`) und Rückalarme (`cleared`) über diesen Webhook kommen dort ebenfalls an, je Webhook nur
+einmal. Endet ein Alarm, egal wie (Rückalarm oder `?event=clear` über einen beliebigen Webhook, automatisches
+Zurücksetzen, `alamos.reset_alarm`), bekommen alle Webhooks, die den Alarm gemeldet haben, `cleared`.
 
 | `event` | Wirkung |
 | --- | --- |
@@ -210,6 +231,7 @@ Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zur�
 | --- | --- |
 | `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
 | `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (bei `event=recall` mit `recall: true`, `keyword`, `unit`, `data`) |
+| `event.<name>_alarm_event_webhook_<n>` | Event-Entität je Webhook, löst auch bei zusammengefassten Alarmen aus *(nur ab 2 Webhooks, siehe [Mehrere Webhooks](#mehrere-webhooks))* |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
 | `sensor.<name>_last_webhook` | *Diagnose.* Zeitpunkt des letzten Webhook-Aufrufs, egal ob Alarm, zusammengefasst, Probealarm, Rückalarm oder vom Einheiten-Filter ignoriert. Attribute: `received` (genauer Zeitpunkt), `webhook` (Nummer), `method`, `result` (`ok`, `merged`, `test`, `cleared`, `ignored`), `data` (Rohdaten). Im Verlauf steht damit jeder einzelne Aufruf |
 | `sensor.<name>_unit` | Alle Einheiten des letzten Alarms, Favoriten-Einheit zuerst (z. B. `LZ2, LZ1`). Attribute: `unit` (Haupteinheit), `units` (Liste) |

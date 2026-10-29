@@ -3,11 +3,35 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import Entity, EntityDescription
 
+from . import entry_webhook_count
 from .alarm import AlamosAlarmManager
-from .const import DOMAIN
+from .const import DOMAIN, MAX_WEBHOOKS
+
+
+def webhook_entity_numbers(entry: ConfigEntry) -> range:
+    """Return the webhooks with their own entities, none for a single webhook."""
+    count = entry_webhook_count(entry)
+    return range(1, count + 1) if count > 1 else range(0)
+
+
+@callback
+def async_remove_webhook_entities(
+    hass: HomeAssistant, entry: ConfigEntry, domain: str, key: str, keep: range
+) -> None:
+    """Remove the entities of the webhooks which do not have their own anymore."""
+    registry = er.async_get(hass)
+    for number in range(1, MAX_WEBHOOKS + 1):
+        if number in keep:
+            continue
+        if entity_id := registry.async_get_entity_id(
+            domain, DOMAIN, f"{entry.entry_id}_{key}_{number}"
+        ):
+            registry.async_remove(entity_id)
 
 
 class AlamosEntity(Entity):
