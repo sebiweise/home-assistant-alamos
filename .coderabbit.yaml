@@ -1,0 +1,119 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration for the Alamos Home Assistant integration.
+language: de-DE
+tone_instructions: >-
+  Sachlich und knapp auf Deutsch. Sicherheitsrelevante Alarmierung: Risiken
+  für verlorene oder verspätete Alarme immer zuerst und deutlich nennen.
+early_access: false
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: true
+  sequence_diagrams: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - master
+    ignore_usernames:
+      - dependabot[bot]
+
+  path_filters:
+    - "!requirements_test.txt"
+    - "!graphify-out/**"
+    - "!custom_components/alamos/brand/**"
+
+  path_instructions:
+    - path: "custom_components/alamos/**/*.py"
+      instructions: >-
+        Home-Assistant-Custom-Integration (HACS, min. HA 2024.11.0). Prüfe
+        HA-Konventionen: async-only, kein blockierendes I/O im Event-Loop,
+        Typannotationen, Entitäten über die Basis in entity.py, Optionen in
+        entry.options, Webhook-ID in entry.data. Lint und Format übernimmt
+        Ruff (pyproject.toml), Code-Smells meldet SonarCloud: diese nicht
+        wiederholen. Wichtigster Maßstab: Kein Pfad darf einen Alarm still
+        verwerfen. Im Zweifel Alarm durchlassen (z. B. ohne Einheit passiert
+        er den Einheiten-Filter). Fehler aus der Feedback-API dürfen den
+        Alarmempfang nie blockieren. `# NOSONAR` an von HA vorgegebenen
+        Signaturen ist gewollt.
+    - path: "custom_components/alamos/receiver.py"
+      instructions: >-
+        Webhook-Handler für aPager PRO (GET-Query oder UTF-8-JSON) und AMweb
+        (GET, Clear/Recall über ?event=). Achte auf robuste Behandlung
+        fehlender oder leerer Felder, Form/JSON/Query-Varianten und darauf,
+        dass jeder Aufruf mit einem sinnvollen HTTP-Status beantwortet wird.
+    - path: "custom_components/alamos/alarm.py"
+      instructions: >-
+        Alarmzustand, Auto-Reset, Zusammenfassen von Webhooks innerhalb des
+        Merge-Fensters, Feedback-Deadline. Prüfe Race Conditions, Timer-
+        Aufräumen beim Entladen und dass Listener immer benachrichtigt werden.
+    - path: "custom_components/alamos/api.py"
+      instructions: >-
+        Client für die Alamos-Feedback-API. Die API ist nur teilweise
+        dokumentiert; Annahmen sollen im Code als solche markiert sein. Der
+        API-Key darf nie geloggt oder in Attributen/Events auftauchen.
+    - path: "custom_components/alamos/{strings.json,translations/*.json,services.yaml}"
+      instructions: >-
+        Neue Optionen, Entitäten und Services müssen in strings.json,
+        translations/en.json und translations/de.json konsistent sein und
+        in der README (Deutsch) dokumentiert werden. Deutsche Texte in
+        korrekter Rechtschreibung und neutraler Ansprache wie im Bestand.
+    - path: "custom_components/alamos/manifest.json"
+      instructions: >-
+        Version nach SemVer: Patch für Fixes, Logging/Diagnose und interne
+        Änderungen, Minor nur für neue Nutzerfunktionen, Major für Breaking
+        Changes. Nach dem Merge taggt release.yml automatisch.
+    - path: "blueprints/automation/alamos/**/*.yaml"
+      instructions: >-
+        Home-Assistant-Blueprints für Endnutzer. Prüfe gültige
+        Blueprint-Syntax, sinnvolle Defaults, deutsche/englische Texte und
+        dass sie in tests/test_blueprints.py abgedeckt sind.
+    - path: "tests/**/*.py"
+      instructions: >-
+        pytest mit pytest-homeassistant-custom-component. Neue Funktionen
+        brauchen Tests, besonders für Randfälle beim Alarmempfang. Keine
+        Tests überspringen oder abschwächen. Zeitabhängiges über freezer
+        bzw. async_fire_time_changed, nicht über echtes Warten.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Actions sind per Commit-SHA gepinnt (Dependabot aktualisiert sie);
+        neue Actions ebenfalls per SHA mit Versionskommentar pinnen und
+        minimale permissions setzen.
+    - path: "README.md"
+      instructions: >-
+        README ist auf Deutsch und richtet sich an Endnutzer (Feuerwehr,
+        Rettungsdienst), nicht an Admins. Auf Verständlichkeit achten.
+
+  tools:
+    ruff:
+      enabled: true
+    pylint:
+      enabled: false
+    flake8:
+      enabled: false
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: false
+    gitleaks:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+  learnings:
+    scope: local
