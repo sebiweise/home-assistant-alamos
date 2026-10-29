@@ -221,8 +221,9 @@ beliebigen Home-Assistant-Kalendern bereit, z. B. aus einem lokalen Kalender mit
    **iCal URL** eintragen. Den Datenschutzmodus kannst du dort einschalten, wenn die Admins nur „Termin“ sehen sollen.
 
 Der Feed enthält Termine ab heute bis 6 Monate im Voraus mit Titel, Beschreibung, Beginn und Ende (ganztägige Termine
-bleiben ganztägig). Ort und Teilnehmer werden nicht übertragen. Ist ein gewählter Kalender gerade nicht lesbar,
-antwortet der Feed mit einem Fehler statt mit einem leeren Kalender, damit die App ihre zuletzt synchronisierten
+bleiben ganztägig). Ort und Teilnehmer werden nicht übertragen. Abgesagte Termine werden ausgelassen, sofern
+Home Assistant den Terminstatus liefert (neuere Versionen; in 2024.11 enthält `calendar.get_events` ihn noch nicht).
+Ist ein gewählter Kalender gerade nicht lesbar, antwortet der Feed mit einem Fehler statt mit einem leeren Kalender, damit die App ihre zuletzt synchronisierten
 Einträge behält.
 
 > [!NOTE]
