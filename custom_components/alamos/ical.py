@@ -92,7 +92,9 @@ def _format_time(name: str, value: str | date) -> str:
 
 
 def _matches(event: dict[str, Any], keywords: list[str]) -> bool:
-    """Return whether the event title or description contains a keyword."""
+    """Return whether the event is not cancelled and contains a keyword."""
+    if str(event.get("status") or "").upper() == "CANCELLED":
+        return False
     if not keywords:
         return True
     text = f"{event.get('summary') or ''}\n{event.get('description') or ''}".lower()
