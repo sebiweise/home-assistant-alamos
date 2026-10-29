@@ -44,6 +44,12 @@ EVENTS: list[dict[str, Any]] = [
         "summary": "Urlaub, Ostsee; Familie",
         "description": "Zeile 1\nZeile 2",
     },
+    {
+        "start": "2026-11-20T08:00:00+01:00",
+        "end": "2026-11-20T16:00:00+01:00",
+        "summary": "Abgesagte Schicht",
+        "status": "CANCELLED",
+    },
 ]
 
 
@@ -99,6 +105,7 @@ async def test_feed(hass: HomeAssistant, hass_client_no_auth) -> None:
     assert body.startswith("BEGIN:VCALENDAR\r\n")
     assert body.endswith("END:VCALENDAR\r\n")
     assert body.count("BEGIN:VEVENT") == 2
+    assert "Abgesagte Schicht" not in body
     assert "DTSTART:20261102T070000Z\r\n" in body
     assert "DTEND:20261102T153000Z\r\n" in body
     assert "SUMMARY:Frühschicht\r\n" in body
