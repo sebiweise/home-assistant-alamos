@@ -60,6 +60,8 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Einheiten-Filter | Nur Alarme dieser Einheiten verarbeiten, z. B. `LZ1`, `Florian Musterhausen 1/44` (Groß-/Kleinschreibung egal). Alarme ohne übermittelte Einheit werden immer verarbeitet, damit kein echter Alarm verloren geht |
 | Favoriten-Einheit | Werden mehrere Einheiten alarmiert, steht diese Einheit immer an erster Stelle (Sensor „Einheit“, Attribute `unit` und `units`), egal in welcher Reihenfolge die Webhooks ankommen. Groß-/Kleinschreibung egal |
 | Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
+| Kalender für die Verfügbarkeit | *Optional, standardmäßig leer (aus).* Termine dieser Home-Assistant-Kalender stellt die Integration als iCal-Feed für aPager PRO bereit, siehe [Verfügbarkeit aus Home-Assistant-Kalendern](#verfügbarkeit-aus-home-assistant-kalendern) |
+| Nur Kalendertermine mit | Nur Termine in den Feed übernehmen, deren Titel oder Beschreibung einen dieser Begriffe enthält, z. B. `Urlaub`, `Schicht` (Groß-/Kleinschreibung egal). Leer = alle Termine |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
 | API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
 
@@ -203,6 +205,36 @@ actions:
 ```
 
 Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zurücksetzen.
+
+### Verfügbarkeit aus Home-Assistant-Kalendern
+
+Umgekehrt kann aPager PRO deine Verfügbarkeit aus einem iCal-Kalender planen (**Verfügbarkeit → Planung →
+Automatische Synchronisation mittels iCal-Adresse**). Die Integration stellt dafür optional einen iCal-Feed aus
+beliebigen Home-Assistant-Kalendern bereit, z. B. aus einem lokalen Kalender mit Schichten, dem Familienkalender
+(gefiltert auf „Urlaub“) oder einem Arbeitskalender. Mehrere Kalender werden zu einem Feed zusammengefasst.
+
+1. In den **Optionen** der Integration unter **Kalender für die Verfügbarkeit** einen oder mehrere Kalender wählen und
+   optional unter **Nur Kalendertermine mit** Begriffe eintragen, damit nur passende Termine übernommen werden.
+2. Die oben im Optionsdialog angezeigte **iCal-URL für die Verfügbarkeit** kopieren
+   (`https://<deine-ha-url>/api/webhook/<eigene_id>`). Sie ist erst aktiv, wenn Kalender gewählt sind.
+3. In der aPager PRO App unter **Verfügbarkeit → Planung** eine neue Synchronisation anlegen und die URL als
+   **iCal URL** eintragen. Den Datenschutzmodus kannst du dort einschalten, wenn die Admins nur „Termin“ sehen sollen.
+
+Der Feed enthält Termine ab heute bis 6 Monate im Voraus mit Titel, Beschreibung, Beginn und Ende (ganztägige Termine
+bleiben ganztägig). Ort und Teilnehmer werden nicht übertragen. Abgesagte Termine werden ausgelassen, sofern
+Home Assistant den Terminstatus liefert (neuere Versionen; in 2024.11 enthält `calendar.get_events` ihn noch nicht).
+Ist ein gewählter Kalender gerade nicht lesbar, antwortet der Feed mit einem Fehler statt mit einem leeren Kalender, damit die App ihre zuletzt synchronisierten
+Einträge behält.
+
+> [!NOTE]
+> - aPager PRO ruft den Feed nur **alle 8 Stunden** ab (in der App über das Aktionsmenü der Planung auch sofort). Das
+>   passt für planbare Termine wie Schichten, Urlaub oder Dienstreisen, nicht für Anwesenheit in Echtzeit.
+> - Welchen Status (z. B. „Nicht verfügbar“) synchronisierte Termine bekommen, beschreibt die Alamos-Doku nicht. Prüfe
+>   das nach der ersten Synchronisation in der App. Der Feed selbst legt keinen Status fest.
+> - Liegt dein Kalender ohnehin bei Google, kannst du dessen iCal-Adresse auch direkt in der App eintragen. Der Feed
+>   lohnt sich vor allem für lokale Kalender, mehrere Kalender oder die Filterung nach Begriffen.
+> - Die URL muss wie die Webhook-URL von außen per HTTPS erreichbar sein. Behandle sie wie ein Passwort: Wer sie kennt,
+>   kann die Termine der gewählten Kalender lesen.
 
 ## Entitäten
 

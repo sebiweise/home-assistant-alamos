@@ -20,12 +20,14 @@
     "step": {
       "init": {
         "title": "Alamos options",
-        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for recalls / cancelled alarms:\n`{webhook_recall_url}`\n\nWebhook URL for \"no alarm open anymore\":\n`{webhook_clear_url}`{additional_webhooks}",
+        "description": "Webhook URL for new alarms:\n`{webhook_url}`\n\nWebhook URL for recalls / cancelled alarms:\n`{webhook_recall_url}`\n\nWebhook URL for \"no alarm open anymore\":\n`{webhook_clear_url}`{additional_webhooks}\n\niCal URL for the aPager PRO availability (only active once calendars are selected below; enter it in aPager PRO under Availability → Planning → automatic synchronisation):\n`{calendar_url}`",
         "data": {
           "api_key": "API key (leave empty to disable the API)",
           "suppress_notification": "Suppress confirmation push notification",
           "reset_minutes": "Reset alarm automatically after (minutes, 0 = never)",
           "webhook_count": "Number of webhooks",
+          "availability_calendars": "Calendars for the aPager PRO availability",
+          "availability_keywords": "Only calendar events containing",
           "keyword_param": "Parameter name for the keyword",
           "unit_param": "Parameter name for the unit",
           "api_url": "API base URL",
@@ -38,7 +40,9 @@
           "favorite_unit": "If several units are alerted, this unit is always listed first and used as the main unit (case-insensitive).",
           "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
           "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL.",
-          "webhook_count": "Number of webhooks (1–5) with their own alarm count. All 5 webhook URLs above are always active; `?event=recall` and `?event=clear` work with every URL."
+          "webhook_count": "Number of webhooks (1–5) with their own alarm count. All 5 webhook URLs above are always active; `?event=recall` and `?event=clear` work with every URL.",
+          "availability_calendars": "Optional. Events of these calendars are provided as an iCal feed under the URL above, which aPager PRO can import to plan your availability. Empty = feed disabled.",
+          "availability_keywords": "Only provide events whose title or description contains one of these terms (case-insensitive), e.g. \"Urlaub\". Empty = all events."
         }
       }
     }

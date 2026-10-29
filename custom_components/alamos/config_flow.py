@@ -23,6 +23,9 @@ from .const import (
     CONF_ADDITIONAL_WEBHOOK_IDS,
     CONF_API_KEY,
     CONF_API_URL,
+    CONF_AVAILABILITY_CALENDARS,
+    CONF_AVAILABILITY_KEYWORDS,
+    CONF_CALENDAR_WEBHOOK_ID,
     CONF_FAVORITE_UNIT,
     CONF_KEYWORD_PARAM,
     CONF_RESET_MINUTES,
@@ -65,7 +68,13 @@ WEBHOOK_COUNT_SELECTOR = selector.NumberSelector(
 )
 
 
+CALENDAR_SELECTOR = selector.EntitySelector(
+    selector.EntitySelectorConfig(domain="calendar", multiple=True)
+)
+
+
 def _webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
+    """Return the URL of a webhook, or its path without a configured URL."""
     try:
         return webhook.async_generate_url(hass, webhook_id)
     except HomeAssistantError:  # no external/internal URL configured yet
@@ -75,6 +84,7 @@ def _webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
 def _webhook_placeholders(
     hass: HomeAssistant, webhook_ids: list[str]
 ) -> dict[str, str]:
+    """Return the webhook URLs shown in the config and options flow."""
     url = _webhook_url(hass, webhook_ids[0])
     return {
         "webhook_url": url,
@@ -88,6 +98,7 @@ def _webhook_placeholders(
 
 
 def _options_schema(options: dict[str, Any]) -> vol.Schema:
+    """Return the options schema with the current values as defaults."""
     return vol.Schema(
         {
             vol.Optional(
@@ -119,6 +130,14 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 default=options.get(CONF_TEST_KEYWORDS, []),
             ): LIST_SELECTOR,
             vol.Optional(
+                CONF_AVAILABILITY_CALENDARS,
+                default=options.get(CONF_AVAILABILITY_CALENDARS, []),
+            ): CALENDAR_SELECTOR,
+            vol.Optional(
+                CONF_AVAILABILITY_KEYWORDS,
+                default=options.get(CONF_AVAILABILITY_KEYWORDS, []),
+            ): LIST_SELECTOR,
+            vol.Optional(
                 CONF_KEYWORD_PARAM,
                 default=options.get(CONF_KEYWORD_PARAM, DEFAULT_KEYWORD_PARAM),
             ): selector.TextSelector(),
@@ -135,6 +154,7 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
 
 
 def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Strip text options and drop empty list entries."""
     options = dict(user_input)
     options[CONF_API_KEY] = (options.get(CONF_API_KEY) or "").strip()
     options[CONF_RESET_MINUTES] = int(
@@ -151,7 +171,10 @@ def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
     ).strip()
     options[CONF_FAVORITE_UNIT] = (options.get(CONF_FAVORITE_UNIT) or "").strip()
     options[CONF_API_URL] = (options.get(CONF_API_URL) or DEFAULT_API_URL).strip()
-    for key in (CONF_UNIT_FILTER, CONF_TEST_KEYWORDS):
+    options[CONF_AVAILABILITY_CALENDARS] = list(
+        options.get(CONF_AVAILABILITY_CALENDARS) or []
+    )
+    for key in (CONF_UNIT_FILTER, CONF_TEST_KEYWORDS, CONF_AVAILABILITY_KEYWORDS):
         options[key] = [
             item.strip() for item in options.get(key) or [] if item and item.strip()
         ]
@@ -162,7 +185,7 @@ class AlamosConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Alamos."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the flow."""
@@ -184,6 +207,7 @@ class AlamosConfigFlow(ConfigFlow, domain=DOMAIN):
                 data={
                     CONF_WEBHOOK_ID: self._webhook_ids[0],
                     CONF_ADDITIONAL_WEBHOOK_IDS: self._webhook_ids[1:],
+                    CONF_CALENDAR_WEBHOOK_ID: webhook.async_generate_id(),
                 },
                 options=_clean_options(
                     {
@@ -234,10 +258,16 @@ class AlamosOptionsFlow(OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(data=_clean_options(user_input))
 
+        data = self.config_entry.data
+        placeholders = _webhook_placeholders(
+            self.hass, entry_webhook_ids(self.config_entry)
+        )
+        calendar_webhook_id = data.get(CONF_CALENDAR_WEBHOOK_ID)
+        placeholders["calendar_url"] = (
+            _webhook_url(self.hass, calendar_webhook_id) if calendar_webhook_id else "-"
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(dict(self.config_entry.options)),
-            description_placeholders=_webhook_placeholders(
-                self.hass, entry_webhook_ids(self.config_entry)
-            ),
+            description_placeholders=placeholders,
         )
