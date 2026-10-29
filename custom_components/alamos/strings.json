@@ -79,6 +79,9 @@
       },
       "feedback_reject": {
         "name": "Reject alarm"
+      },
+      "reset_alarm_count": {
+        "name": "Reset alarm count"
       }
     },
     "event": {
@@ -185,6 +188,20 @@
         "config_entry_id": {
           "name": "Alamos entry",
           "description": "Entry to reset. If omitted, all entries are reset."
+        }
+      }
+    },
+    "reset_alarm_count": {
+      "name": "Reset alarm count",
+      "description": "Resets the alarm count and the webhook counts to 0, or only the count of one webhook.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos entry",
+          "description": "Entry to reset. If omitted, all entries are reset."
+        },
+        "webhook": {
+          "name": "Webhook",
+          "description": "Number of the webhook (1–5) whose count is reset. If omitted, the alarm count and all webhook counts are reset."
         }
       }
     }

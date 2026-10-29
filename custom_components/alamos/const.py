@@ -68,6 +68,7 @@ EVENT_TYPE_TEST_ALARM: Final = "test_alarm"
 # Services
 SERVICE_SEND_FEEDBACK: Final = "send_feedback"
 SERVICE_RESET_ALARM: Final = "reset_alarm"
+SERVICE_RESET_ALARM_COUNT: Final = "reset_alarm_count"
 ATTR_CONFIG_ENTRY_ID: Final = "config_entry_id"
 ATTR_MODE: Final = "mode"
 ATTR_SUPPRESS_NOTIFICATION: Final = "suppress_notification"
