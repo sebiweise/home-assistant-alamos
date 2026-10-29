@@ -272,6 +272,16 @@ class AlamosAlarmManager:
         self._notify()
 
     @callback
+    def async_reset_count(self, webhook: int | None = None) -> None:
+        """Reset the alarm count and all webhook counts, or one webhook count."""
+        if webhook is None:
+            self.state.alarm_count = 0
+            self.state.webhook_counts.clear()
+        else:
+            self.state.webhook_counts.pop(webhook, None)
+        self._notify()
+
+    @callback
     def async_restore(
         self,
         alarm_count: int | None = None,

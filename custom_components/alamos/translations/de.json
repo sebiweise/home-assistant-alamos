@@ -79,6 +79,9 @@
       },
       "feedback_reject": {
         "name": "Alarm absagen"
+      },
+      "reset_alarm_count": {
+        "name": "Alarmzähler zurücksetzen"
       }
     },
     "event": {
@@ -185,6 +188,20 @@
         "config_entry_id": {
           "name": "Alamos-Eintrag",
           "description": "Zurückzusetzender Eintrag. Ohne Angabe werden alle Einträge zurückgesetzt."
+        }
+      }
+    },
+    "reset_alarm_count": {
+      "name": "Alarmzähler zurücksetzen",
+      "description": "Setzt den Alarmzähler und die Webhook-Zähler auf 0 oder nur den Zähler eines Webhooks.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Alamos-Eintrag",
+          "description": "Zurückzusetzender Eintrag. Ohne Angabe werden alle Einträge zurückgesetzt."
+        },
+        "webhook": {
+          "name": "Webhook",
+          "description": "Nummer des Webhooks (1–5), dessen Zähler zurückgesetzt wird. Ohne Angabe werden der Alarmzähler und alle Webhook-Zähler zurückgesetzt."
         }
       }
     }
