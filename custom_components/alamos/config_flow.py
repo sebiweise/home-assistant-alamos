@@ -74,6 +74,7 @@ CALENDAR_SELECTOR = selector.EntitySelector(
 
 
 def _webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
+    """Return the URL of a webhook, or its path without a configured URL."""
     try:
         return webhook.async_generate_url(hass, webhook_id)
     except HomeAssistantError:  # no external/internal URL configured yet
@@ -83,6 +84,7 @@ def _webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
 def _webhook_placeholders(
     hass: HomeAssistant, webhook_ids: list[str]
 ) -> dict[str, str]:
+    """Return the webhook URLs shown in the config and options flow."""
     url = _webhook_url(hass, webhook_ids[0])
     return {
         "webhook_url": url,
@@ -96,6 +98,7 @@ def _webhook_placeholders(
 
 
 def _options_schema(options: dict[str, Any]) -> vol.Schema:
+    """Return the options schema with the current values as defaults."""
     return vol.Schema(
         {
             vol.Optional(
@@ -151,6 +154,7 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
 
 
 def _clean_options(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Strip text options and drop empty list entries."""
     options = dict(user_input)
     options[CONF_API_KEY] = (options.get(CONF_API_KEY) or "").strip()
     options[CONF_RESET_MINUTES] = int(
