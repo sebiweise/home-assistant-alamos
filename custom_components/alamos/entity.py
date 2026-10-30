@@ -33,6 +33,7 @@ class UnrecordedDataMixin:
 
     _unrecorded_attributes = frozenset({ATTR_DATA})
 
+
 # Base keys of the entities that exist once per entry and once per webhook.
 # They are part of the unique IDs, so they must never change.
 KEY_WEBHOOK_EVENT = "webhook"
