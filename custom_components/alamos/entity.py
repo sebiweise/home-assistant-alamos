@@ -10,7 +10,28 @@ from homeassistant.helpers.entity import Entity, EntityDescription
 
 from . import entry_webhook_count
 from .alarm import AlamosAlarmManager
-from .const import DOMAIN, MAX_WEBHOOKS
+from .const import (
+    ATTR_DATA,
+    CONF_RECORD_RAW_DATA,
+    DEFAULT_RECORD_RAW_DATA,
+    DOMAIN,
+    MAX_WEBHOOKS,
+)
+
+
+def record_raw_data(entry: ConfigEntry) -> bool:
+    """Return True if the raw webhook data is stored in the history."""
+    return bool(entry.options.get(CONF_RECORD_RAW_DATA, DEFAULT_RECORD_RAW_DATA))
+
+
+class UnrecordedDataMixin:
+    """Keep the raw webhook data out of the recorder.
+
+    Put it before the entity class. The attribute stays available in the
+    state, e.g. for templates; it is just not stored in the history.
+    """
+
+    _unrecorded_attributes = frozenset({ATTR_DATA})
 
 
 def webhook_entity_numbers(entry: ConfigEntry) -> range:

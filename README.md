@@ -61,6 +61,7 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Favoriten-Einheit | Werden mehrere Einheiten alarmiert, steht diese Einheit immer an erster Stelle (Sensor „Einheit“, Attribute `unit` und `units`), egal in welcher Reihenfolge die Webhooks ankommen. Groß-/Kleinschreibung egal |
 | Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
+| Rohdaten im Verlauf speichern | Standardmäßig aus. Das Attribut `data` (alle empfangenen Parameter, unter Umständen mit Einsatzadresse oder Personendaten) steht dann nur im aktuellen Zustand, z. B. für Templates und Automationen, und wird nicht im Verlauf (Recorder) gespeichert. Einschalten, um es wie in früheren Versionen auch im Verlauf zu behalten |
 | API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
 
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
@@ -144,7 +145,8 @@ Probealarme und Rückalarme mehrerer Einheiten werden ebenfalls nur einmal gemel
 - iOS akzeptiert nur `https://`-URLs. POST gibt es unter iOS erst ab Version 1.22.0, sonst `GET` verwenden.
 - URL-Platzhalter (`{unit}`, `{keyword}`) und ein eigener Header (ab aPager PRO 6.1) sind nicht nötig: Die Webhook-ID in der URL ist das Geheimnis.
 - Mit **Webhook testen** in der App schickt der aPager PRO `unit1` / `B3`. Das taucht in Home Assistant als normaler Alarm auf.
-- Jeder Aufruf landet im Diagnose-Sensor **Letzter Webhook** (Rohdaten und Ergebnis, im Verlauf nachvollziehbar). Zusätzlich schreibt die Integration jeden Aufruf ins Log, wenn du in der `configuration.yaml` Folgendes einträgst:
+- Jeder Aufruf landet im Diagnose-Sensor **Letzter Webhook** (Rohdaten und Ergebnis, im Verlauf nachvollziehbar; die
+  Rohdaten nur mit der Option „Rohdaten im Verlauf speichern“). Zusätzlich schreibt die Integration jeden Aufruf ins Log, wenn du in der `configuration.yaml` Folgendes einträgst:
 
   ```yaml
   logger:
@@ -229,11 +231,11 @@ Behandle den iCal-Link wie ein Passwort. In der App kannst du ihn jederzeit zur�
 
 | Entität | Beschreibung |
 | --- | --- |
-| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
+| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter, standardmäßig nicht im Verlauf gespeichert, siehe Optionen), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
 | `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (bei `event=recall` mit `recall: true`, `keyword`, `unit`, `data`) |
 | `event.<name>_alarm_event_webhook_<n>` | Event-Entität je Webhook, löst auch bei zusammengefassten Alarmen aus *(nur ab 2 Webhooks, siehe [Mehrere Webhooks](#mehrere-webhooks))* |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
-| `sensor.<name>_last_webhook` | *Diagnose.* Zeitpunkt des letzten Webhook-Aufrufs, egal ob Alarm, zusammengefasst, Probealarm, Rückalarm oder vom Einheiten-Filter ignoriert. Attribute: `received` (genauer Zeitpunkt), `webhook` (Nummer), `method`, `result` (`ok`, `merged`, `test`, `cleared`, `ignored`), `data` (Rohdaten). Im Verlauf steht damit jeder einzelne Aufruf |
+| `sensor.<name>_last_webhook` | *Diagnose.* Zeitpunkt des letzten Webhook-Aufrufs, egal ob Alarm, zusammengefasst, Probealarm, Rückalarm oder vom Einheiten-Filter ignoriert. Attribute: `received` (genauer Zeitpunkt), `webhook` (Nummer), `method`, `result` (`ok`, `merged`, `test`, `cleared`, `ignored`), `data` (Rohdaten). Im Verlauf steht damit jeder einzelne Aufruf, die Rohdaten aber nur mit der Option „Rohdaten im Verlauf speichern“ |
 | `sensor.<name>_unit` | Alle Einheiten des letzten Alarms, Favoriten-Einheit zuerst (z. B. `LZ2, LZ1`). Attribute: `unit` (Haupteinheit), `units` (Liste) |
 | `sensor.<name>_last_alarm` | Zeitpunkt des letzten Alarms |
 | `sensor.<name>_alarm_count` | Anzahl empfangener Alarme, jeder Alarm einmal (Diagnose) |

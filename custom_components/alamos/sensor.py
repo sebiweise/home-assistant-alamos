@@ -22,7 +22,13 @@ from homeassistant.helpers.typing import StateType
 from . import AlamosConfigEntry
 from .alarm import AlarmState
 from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK
-from .entity import AlamosEntity, async_remove_webhook_entities, webhook_entity_numbers
+from .entity import (
+    AlamosEntity,
+    UnrecordedDataMixin,
+    async_remove_webhook_entities,
+    record_raw_data,
+    webhook_entity_numbers,
+)
 
 # Home Assistant does not accept states longer than 255 characters.
 MAX_STATE_LENGTH = 255
@@ -155,7 +161,10 @@ async def async_setup_entry(  # NOSONAR
     numbers = webhook_entity_numbers(entry)
     descriptions.extend(_webhook_alarm_count(number) for number in numbers)
     async_remove_webhook_entities(hass, entry, SENSOR_DOMAIN, "alarm_count", numbers)
-    async_add_entities(AlamosSensor(entry, description) for description in descriptions)
+    entity_class = (
+        AlamosSensor if record_raw_data(entry) else AlamosSensorUnrecordedData
+    )
+    async_add_entities(entity_class(entry, description) for description in descriptions)
 
 
 class AlamosSensor(AlamosEntity, RestoreSensor):
@@ -190,3 +199,7 @@ class AlamosSensor(AlamosEntity, RestoreSensor):
         if self.entity_description.attrs_fn is None:
             return None
         return self.entity_description.attrs_fn(self.manager.state)
+
+
+class AlamosSensorUnrecordedData(UnrecordedDataMixin, AlamosSensor):
+    """Sensor without the raw data in the history."""

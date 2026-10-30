@@ -35,11 +35,15 @@ CONF_UNIT_PARAM: Final = "unit_param"
 CONF_UNIT_FILTER: Final = "unit_filter"
 CONF_TEST_KEYWORDS: Final = "test_keywords"
 CONF_FAVORITE_UNIT: Final = "favorite_unit"
+# Whether the raw webhook data (attribute "data", may contain the address of
+# the incident or personal data) is stored in the recorder history.
+CONF_RECORD_RAW_DATA: Final = "record_raw_data"
 
 DEFAULT_RESET_MINUTES: Final = 30
 DEFAULT_WEBHOOK_COUNT: Final = 1
 DEFAULT_KEYWORD_PARAM: Final = "keyword"
 DEFAULT_UNIT_PARAM: Final = "unit"
+DEFAULT_RECORD_RAW_DATA: Final = False
 
 # Query / body parameter used to tell the integration which event happened.
 # AMweb can call one URL on a new alarm and another one when no alarm is open
