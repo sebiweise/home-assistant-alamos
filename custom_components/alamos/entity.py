@@ -33,6 +33,16 @@ class UnrecordedDataMixin:
 
     _unrecorded_attributes = frozenset({ATTR_DATA})
 
+# Base keys of the entities that exist once per entry and once per webhook.
+# They are part of the unique IDs, so they must never change.
+KEY_WEBHOOK_EVENT = "webhook"
+KEY_ALARM_COUNT = "alarm_count"
+
+
+def webhook_key(base: str, number: int) -> str:
+    """Return the entity description key of a webhook's own entity."""
+    return f"{base}_{number}"
+
 
 def webhook_entity_numbers(entry: ConfigEntry) -> range:
     """Return the webhooks with their own entities, none for a single webhook."""
@@ -50,7 +60,7 @@ def async_remove_webhook_entities(
         if number in keep:
             continue
         if entity_id := registry.async_get_entity_id(
-            domain, DOMAIN, f"{entry.entry_id}_{key}_{number}"
+            domain, DOMAIN, f"{entry.entry_id}_{webhook_key(key, number)}"
         ):
             registry.async_remove(entity_id)
 

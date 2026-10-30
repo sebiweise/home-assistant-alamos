@@ -43,6 +43,7 @@ from .const import (
     CONF_SUPPRESS_NOTIFICATION,
     CONF_WEBHOOK_COUNT,
     CONF_WEBHOOK_ID,
+    DATA_ALARM_SNAPSHOTS,
     DEFAULT_API_URL,
     DEFAULT_RESET_MINUTES,
     DEFAULT_WEBHOOK_COUNT,
@@ -51,6 +52,9 @@ from .const import (
     EVENT_ALARM_CLEARED,
     EVENT_TYPE_CLEARED,
     FEEDBACK_MODES,
+    FEEDBACK_RESULT_ERROR,
+    FEEDBACK_RESULT_INVALID_API_KEY,
+    FEEDBACK_RESULT_NO_SUBSCRIPTION,
     MAX_WEBHOOKS,
     SERVICE_RESET_ALARM,
     SERVICE_RESET_ALARM_COUNT,
@@ -106,6 +110,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         int(options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES)),
         options.get(CONF_FAVORITE_UNIT) or None,
     )
+    # A running alarm survives the reload after an options change.
+    snapshot = hass.data.get(DATA_ALARM_SNAPSHOTS, {}).pop(entry.entry_id, None)
+    if snapshot is not None:
+        manager.async_load_snapshot(snapshot)
 
     client: AlamosApiClient | None = None
     if api_key := options.get(CONF_API_KEY):
@@ -142,6 +150,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         )
         entry.async_on_unload(partial(webhook.async_unregister, hass, webhook_id))
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    if snapshot is not None:
+        manager.async_resume()
 
     return True
 
@@ -183,7 +193,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> b
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: AlamosConfigEntry) -> None:
-    """Reload the entry when the options change."""
+    """Reload the entry when the options change, keeping a running alarm."""
+    if entry.state is ConfigEntryState.LOADED:
+        hass.data.setdefault(DATA_ALARM_SNAPSHOTS, {})[entry.entry_id] = (
+            entry.runtime_data.manager.async_snapshot()
+        )
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -224,17 +238,17 @@ async def async_send_feedback(
     try:
         result = await runtime.client.async_send_feedback(mode, suppress_notification)
     except AlamosAuthError as err:
-        runtime.manager.async_feedback(mode, "invalid_api_key")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_INVALID_API_KEY)
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="invalid_api_key"
         ) from err
     except AlamosSubscriptionError as err:
-        runtime.manager.async_feedback(mode, "no_subscription")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_NO_SUBSCRIPTION)
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="no_subscription"
         ) from err
     except AlamosApiError as err:
-        runtime.manager.async_feedback(mode, "error")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_ERROR)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="api_error",

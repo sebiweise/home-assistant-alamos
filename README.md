@@ -64,6 +64,10 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Rohdaten im Verlauf speichern | Standardmäßig aus. Das Attribut `data` (alle empfangenen Parameter, unter Umständen mit Einsatzadresse oder Personendaten) steht dann nur im aktuellen Zustand, z. B. für Templates und Automationen, und wird nicht im Verlauf (Recorder) gespeichert. Einschalten, um es wie in früheren Versionen auch im Verlauf zu behalten |
 | API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
 
+Speicherst du die Optionen während eines laufenden Alarms, bleibt der Alarm mit Stichwort und Einheiten erhalten. Das
+automatische Zurücksetzen zählt weiter ab Beginn des Alarms, mit der neu eingestellten Zeit. Ist diese Zeit schon
+abgelaufen, endet der Alarm sofort (mit `cleared`).
+
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
 **Optionen** der Integration. Sie haben folgende Form:
 
@@ -106,7 +110,13 @@ conditions:
 
 Probealarme (`test_alarm`) und Rückalarme (`cleared`) über diesen Webhook kommen dort ebenfalls an, je Webhook nur
 einmal. Endet ein Alarm, egal wie (Rückalarm oder `?event=clear` über einen beliebigen Webhook, automatisches
-Zurücksetzen, `alamos.reset_alarm`), bekommen alle Webhooks, die den Alarm gemeldet haben, `cleared`.
+Zurücksetzen, `alamos.reset_alarm`), bekommen alle Webhooks, die den Alarm gemeldet haben, `cleared`. Das gilt auch,
+wenn ein neuer Alarm den laufenden ablöst (anderes Stichwort oder mehr als 30 Sekunden später): Die Webhooks des alten
+Alarms bekommen zuerst `cleared`. Der Alarm-Sensor bleibt dabei an und `alamos_alarm_cleared` kommt nicht, weil
+direkt der neue Alarm läuft.
+
+Bei einem zusammengefassten Webhook enthält das Attribut `unit` die Einheit dieses Webhooks, `units` alle bis dahin
+gemeldeten Einheiten des Alarms und `feedback_deadline` die Frist ab Beginn des Alarms.
 
 | `event` | Wirkung |
 | --- | --- |
@@ -279,7 +289,7 @@ data:
 | Event | Daten |
 | --- | --- |
 | `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `units`, `data`, `test` (`true` bei Probealarm), `webhook` (Nummer des Webhooks), `feedback_deadline` (ISO-Zeitstempel, Alarm + 3 Minuten) |
-| `alamos_alarm_cleared` | `config_entry_id`, `name`; bei `event=recall` zusätzlich `recall: true`, `keyword`, `unit`, `webhook`, `data` |
+| `alamos_alarm_cleared` | `config_entry_id`, `name`; bei `event=recall` zusätzlich `recall: true`, `keyword`, `unit`, `units`, `webhook`, `data` |
 
 ## Blueprints
 

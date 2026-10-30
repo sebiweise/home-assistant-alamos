@@ -13,6 +13,14 @@ from homeassistant.util import dt as dt_util
 
 from .api import AlamosApiClient
 from .const import (
+    ATTR_DATA,
+    ATTR_FEEDBACK_DEADLINE,
+    ATTR_KEYWORD,
+    ATTR_RECALL,
+    ATTR_TEST,
+    ATTR_UNIT,
+    ATTR_UNITS,
+    ATTR_WEBHOOK,
     EVENT_TYPE_CLEARED,
     EVENT_TYPE_TEST_ALARM,
     FEEDBACK_WINDOW,
@@ -65,6 +73,14 @@ class AlarmState:
     alarm_webhooks: set[int] = field(default_factory=set)
     feedback: FeedbackState | None = None
     last_webhook: WebhookInfo | None = None
+
+
+@dataclass(slots=True)
+class AlarmSnapshot:
+    """State handed over to the manager of a reloaded config entry."""
+
+    state: AlarmState
+    recent: dict[str, tuple[datetime, str | None]]
 
 
 class AlamosAlarmManager:
@@ -172,11 +188,15 @@ class AlamosAlarmManager:
             self._notify()
             if counted:
                 self._notify_webhook(
-                    webhook,
-                    event_type,
-                    _event_data(state.keyword, unit, data, test=False, webhook=webhook),
+                    webhook, event_type, self._alarm_event_data(unit, data, webhook)
                 )
             return False
+
+        if state.active:
+            # The new alarm replaces the running one. Its webhooks get
+            # "cleared" first, as for every other end of an alarm; the alarm
+            # itself stays active, so the entry does not fire "cleared".
+            self._notify_webhooks_cleared(EVENT_TYPE_CLEARED, {})
 
         state.active = True
         state.keyword = keyword
@@ -189,10 +209,29 @@ class AlamosAlarmManager:
         state.alarm_webhooks = set()
         self._count_alarm(webhook)
         self._schedule_reset()
-        event_data = _event_data(keyword, unit, data, test=False, webhook=webhook)
+        event_data = self._alarm_event_data(unit, data, webhook)
         self._notify(event_type, event_data)
         self._notify_webhook(webhook, event_type, event_data)
         return True
+
+    def _alarm_event_data(
+        self, unit: str | None, data: dict[str, Any], webhook: int
+    ) -> dict[str, Any]:
+        """Build the event data of a webhook reporting the active alarm.
+
+        ``unit`` is the unit of this webhook, ``units`` all units of the alarm
+        so far and the feedback deadline is based on the start of the alarm.
+        """
+        state = self.state
+        return build_event_data(
+            keyword=state.keyword,
+            unit=unit,
+            units=list(state.units),
+            data=data,
+            webhook=webhook,
+            test=False,
+            feedback_deadline=self.feedback_deadline,
+        )
 
     def _count_alarm(self, webhook: int) -> bool:
         """Count the alarm for a webhook, return False if it already was."""
@@ -222,7 +261,17 @@ class AlamosAlarmManager:
 
         Returns False if it repeats the last test alarm (another unit).
         """
-        event_data = _event_data(keyword, unit, data, test=True, webhook=webhook)
+        # A test alarm does not change the alarm state, so its deadline starts
+        # now.
+        event_data = build_event_data(
+            keyword=keyword,
+            unit=unit,
+            units=[unit] if unit else [],
+            data=data,
+            webhook=webhook,
+            test=True,
+            feedback_deadline=dt_util.utcnow() + FEEDBACK_WINDOW,
+        )
         if reported := not self._is_repeat(EVENT_TYPE_TEST_ALARM, keyword):
             self._notify(EVENT_TYPE_TEST_ALARM, event_data)
         if not self._is_repeat(f"{EVENT_TYPE_TEST_ALARM}_{webhook}", keyword):
@@ -230,22 +279,35 @@ class AlamosAlarmManager:
         return reported
 
     @callback
-    def async_recall(self, data: dict[str, Any], webhook: int) -> bool:
+    def async_recall(
+        self,
+        keyword: str | None,
+        unit: str | None,
+        data: dict[str, Any],
+        webhook: int,
+    ) -> bool:
         """Handle a recall: end the alarm and always report it.
 
         Returns False if it repeats the last recall (another unit).
         """
-        keyword = data.get("keyword")
+        event_data = build_event_data(
+            keyword=keyword,
+            unit=unit,
+            units=[unit] if unit else [],
+            data=data,
+            webhook=webhook,
+            recall=True,
+        )
         cleared: set[int] = set()
         if reported := not self._is_repeat("recall", keyword):
             if self.state.active:
                 cleared = set(self.state.alarm_webhooks)
-            self.async_clear(EVENT_TYPE_CLEARED, data, force_event=True)
+            self.async_clear(EVENT_TYPE_CLEARED, event_data, force_event=True)
         # Webhooks already cleared with the alarm drop their own recall.
         for number in cleared:
             self._is_repeat(f"recall_{number}", keyword)
         if webhook not in cleared and not self._is_repeat(f"recall_{webhook}", keyword):
-            self._notify_webhook(webhook, EVENT_TYPE_CLEARED, data)
+            self._notify_webhook(webhook, EVENT_TYPE_CLEARED, event_data)
         return reported
 
     @callback
@@ -286,8 +348,13 @@ class AlamosAlarmManager:
         self.state.last_cleared = dt_util.utcnow()
         self._notify(event_type if was_active or force_event else None, data)
         if was_active:
-            for webhook in sorted(self.state.alarm_webhooks):
-                self._notify_webhook(webhook, event_type, data or {})
+            self._notify_webhooks_cleared(event_type, data or {})
+
+    @callback
+    def _notify_webhooks_cleared(self, event_type: str, data: dict[str, Any]) -> None:
+        """Pass the end of the alarm to every webhook which reported it."""
+        for webhook in sorted(self.state.alarm_webhooks):
+            self._notify_webhook(webhook, event_type, data)
 
     @callback
     def async_feedback(self, mode: str, result: str) -> None:
@@ -341,18 +408,55 @@ class AlamosAlarmManager:
             self.state.last_alarm = last_alarm
 
     @callback
+    def async_snapshot(self) -> AlarmSnapshot:
+        """Return the state to hand over when the config entry reloads."""
+        return AlarmSnapshot(state=self.state, recent=self._recent)
+
+    @callback
+    def async_load_snapshot(self, snapshot: AlarmSnapshot) -> None:
+        """Take over the state of the manager before the reload.
+
+        Call this before the entities are set up, so they start with the
+        running alarm, and ``async_resume`` once they are.
+        """
+        self.state = snapshot.state
+        self._recent = snapshot.recent
+        # The favorite unit may have changed with the options.
+        self.state.units = self._sort_units(self.state.units)
+        if self.state.units:
+            self.state.unit = self.state.units[0]
+
+    @callback
+    def async_resume(self) -> None:
+        """Schedule the auto reset of a running alarm taken over on reload.
+
+        The reset time counts from the start of the alarm, also if it was
+        changed with the options; a reset which is already due ends the alarm
+        right away.
+        """
+        state = self.state
+        if not state.active or state.last_alarm is None or self._reset_minutes <= 0:
+            return
+        reset = state.last_alarm + timedelta(minutes=self._reset_minutes)
+        remaining = reset - dt_util.utcnow()
+        if remaining <= timedelta(0):
+            self.async_clear(EVENT_TYPE_CLEARED)
+            return
+        self._schedule_reset(remaining)
+
+    @callback
     def async_shutdown(self) -> None:
         """Cancel pending timers."""
         self._cancel_timer()
 
     @callback
-    def _schedule_reset(self) -> None:
+    def _schedule_reset(self, delay: timedelta | None = None) -> None:
         self._cancel_timer()
         if self._reset_minutes <= 0:
             return
         self._cancel_reset = async_call_later(
             self.hass,
-            timedelta(minutes=self._reset_minutes),
+            delay or timedelta(minutes=self._reset_minutes),
             self._handle_timeout,
         )
 
@@ -375,21 +479,33 @@ def _same_keyword(first: str | None, second: str | None) -> bool:
     return first.casefold() == second.casefold()
 
 
-def _event_data(
+def build_event_data(
+    *,
     keyword: str | None,
     unit: str | None,
+    units: list[str],
     data: dict[str, Any],
-    *,
-    test: bool,
     webhook: int,
+    test: bool | None = None,
+    recall: bool | None = None,
+    feedback_deadline: datetime | None = None,
 ) -> dict[str, Any]:
-    """Build the data passed to event listeners."""
-    return {
-        "keyword": keyword,
-        "unit": unit,
-        "units": [unit] if unit else [],
-        "data": data,
-        "test": test,
-        "webhook": webhook,
-        "feedback_deadline": (dt_util.utcnow() + FEEDBACK_WINDOW).isoformat(),
+    """Build the data of an alarm, test alarm or recall event.
+
+    ``test`` and ``feedback_deadline`` belong to (test) alarms, ``recall`` to
+    recalls; they are only added when given.
+    """
+    event_data: dict[str, Any] = {
+        ATTR_KEYWORD: keyword,
+        ATTR_UNIT: unit,
+        ATTR_UNITS: units,
+        ATTR_DATA: data,
+        ATTR_WEBHOOK: webhook,
     }
+    if test is not None:
+        event_data[ATTR_TEST] = test
+    if recall is not None:
+        event_data[ATTR_RECALL] = recall
+    if feedback_deadline is not None:
+        event_data[ATTR_FEEDBACK_DEADLINE] = feedback_deadline.isoformat()
+    return event_data

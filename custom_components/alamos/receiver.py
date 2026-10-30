@@ -22,11 +22,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    ATTR_DATA,
-    ATTR_KEYWORD,
-    ATTR_RECALL,
-    ATTR_UNIT,
-    ATTR_WEBHOOK,
     CONF_KEYWORD_PARAM,
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
@@ -43,14 +38,26 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _decode_body(body: bytes, charset: str | None) -> str:
+    """Decode the request body without ever failing.
+
+    aPager PRO sends UTF-8. An unknown charset falls back to UTF-8 and
+    undecodable bytes are replaced, so the alarm still gets through.
+    """
+    try:
+        return body.decode(charset or "utf-8", errors="replace")
+    except LookupError:
+        return body.decode("utf-8", errors="replace")
+
+
 async def _async_read_payload(request: web.Request) -> dict[str, Any]:
     """Merge query parameters and the request body into one dict."""
     data: dict[str, Any] = dict(request.query)
 
-    if request.method != "POST" or not request.can_read_body:
+    if request.method not in ("POST", "PUT") or not request.can_read_body:
         return data
 
-    raw = await request.text()
+    raw = _decode_body(await request.read(), request.charset)
     if not raw.strip():
         return data
 
@@ -159,14 +166,7 @@ def _process_payload(
 
     if event in WEBHOOK_RECALL_VALUES:
         reported = manager.async_recall(
-            {
-                ATTR_KEYWORD: keyword,
-                ATTR_UNIT: unit,
-                ATTR_DATA: payload,
-                ATTR_RECALL: True,
-                ATTR_WEBHOOK: number,
-            },
-            number,
+            keyword=keyword, unit=unit, data=payload, webhook=number
         )
         return web.Response(status=200, text="cleared" if reported else "merged")
 
