@@ -50,7 +50,7 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
     AlamosSensorEntityDescription(
         key="keyword",
         translation_key="keyword",
-        value_fn=lambda state: state.keyword,
+        value_fn=lambda state: _truncate(state.keyword),
         attrs_fn=lambda state: {
             ATTR_UNIT: state.unit,
             ATTR_UNITS: state.units,
@@ -133,9 +133,13 @@ def _units_text(state: AlarmState) -> str | None:
     """Return all alarmed units, the favorite / first one leading."""
     if not state.units:
         return state.unit
-    text = ", ".join(state.units)
-    if len(text) > MAX_STATE_LENGTH:
-        text = text[: MAX_STATE_LENGTH - 1] + "…"
+    return _truncate(", ".join(state.units))
+
+
+def _truncate(text: str | None) -> str | None:
+    """Shorten a text to the maximum state length Home Assistant accepts."""
+    if text is not None and len(text) > MAX_STATE_LENGTH:
+        return text[: MAX_STATE_LENGTH - 1] + "…"
     return text
 
 

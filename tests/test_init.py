@@ -151,6 +151,22 @@ async def test_webhook_put_json(hass: HomeAssistant, hass_client_no_auth) -> Non
     assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
 
 
+async def test_long_keyword_truncated(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """A keyword longer than 255 characters is shortened for the state."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    keyword = "B" * 300
+    resp = await client.post(f"/api/webhook/{WEBHOOK_ID}", json={"keyword": keyword})
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.feuerwehr_keyword")
+    assert len(state.state) == 255
+    assert state.state.endswith("…")
+    assert state.attributes["data"]["keyword"] == keyword
+
+
 async def test_send_feedback(hass: HomeAssistant, aioclient_mock) -> None:
     """Test the feedback service and buttons."""
     await _setup(hass)
