@@ -806,3 +806,68 @@ async def test_webhook_event_entities_are_removed(hass: HomeAssistant) -> None:
     assert not registry.async_get("event.feuerwehr_alarm_event_webhook_1")
     assert not registry.async_get("event.feuerwehr_alarm_event_webhook_2")
     assert registry.async_get("event.feuerwehr_alarm_event")
+
+
+async def test_replaced_alarm_clears_its_webhooks(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """A new alarm replacing the running one sends "cleared" to its webhooks."""
+    entry = await _setup(hass, **{CONF_WEBHOOK_COUNT: 2})
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    urls = [f"/api/webhook/{webhook_id}" for webhook_id in entry_webhook_ids(entry)]
+
+    await client.get(urls[1], params={"keyword": "B3", "unit": "RD"})
+    resp = await client.get(urls[0], params={"keyword": "THL", "unit": "LZ1"})
+    assert await resp.text() == "ok"
+    await hass.async_block_till_done()
+
+    state = hass.states.get("event.feuerwehr_alarm_event_webhook_2")
+    assert state.attributes["event_type"] == "cleared"
+    state = hass.states.get("event.feuerwehr_alarm_event_webhook_1")
+    assert state.attributes["event_type"] == "alarm"
+    assert state.attributes["keyword"] == "THL"
+    # The alarm itself goes on with the new keyword, so the entry stays silent.
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "THL"
+    assert not cleared
+
+    # The cleared webhook joins the new alarm again.
+    resp = await client.get(urls[1], params={"keyword": "THL", "unit": "RD"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+    state = hass.states.get("event.feuerwehr_alarm_event_webhook_2")
+    assert state.attributes["event_type"] == "alarm"
+
+
+async def test_event_data_of_merged_webhooks(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """Merged webhooks report all units so far and the deadline of the alarm."""
+    freezer.move_to("2026-10-07 18:00:00+00:00")
+    entry = await _setup(hass, **{CONF_WEBHOOK_COUNT: 2})
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    urls = [f"/api/webhook/{webhook_id}" for webhook_id in entry_webhook_ids(entry)]
+
+    await client.get(urls[0], params={"keyword": "B3", "unit": "LZ1"})
+    freezer.tick(timedelta(seconds=10))
+    await client.get(urls[1], params={"keyword": "B3", "unit": "RD"})
+    await hass.async_block_till_done()
+
+    deadline = "2026-10-07T18:03:00+00:00"
+    assert alarms[0].data["units"] == ["LZ1"]
+    assert alarms[0].data["feedback_deadline"] == deadline
+    second = hass.states.get("event.feuerwehr_alarm_event_webhook_2")
+    assert second.attributes["unit"] == "RD"
+    assert second.attributes["units"] == ["LZ1", "RD"]
+    assert second.attributes["test"] is False
+    assert second.attributes["feedback_deadline"] == deadline
+
+    await client.get(urls[1], params={"event": "recall", "keyword": "B3", "unit": "RD"})
+    await hass.async_block_till_done()
+    assert cleared[0].data["recall"] is True
+    assert cleared[0].data["unit"] == "RD"
+    assert cleared[0].data["units"] == ["RD"]
+    assert cleared[0].data["webhook"] == 2

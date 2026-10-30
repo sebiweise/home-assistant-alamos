@@ -22,11 +22,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    ATTR_DATA,
-    ATTR_KEYWORD,
-    ATTR_RECALL,
-    ATTR_UNIT,
-    ATTR_WEBHOOK,
     CONF_KEYWORD_PARAM,
     CONF_TEST_KEYWORDS,
     CONF_UNIT_FILTER,
@@ -159,14 +154,7 @@ def _process_payload(
 
     if event in WEBHOOK_RECALL_VALUES:
         reported = manager.async_recall(
-            {
-                ATTR_KEYWORD: keyword,
-                ATTR_UNIT: unit,
-                ATTR_DATA: payload,
-                ATTR_RECALL: True,
-                ATTR_WEBHOOK: number,
-            },
-            number,
+            keyword=keyword, unit=unit, data=payload, webhook=number
         )
         return web.Response(status=200, text="cleared" if reported else "merged")
 
