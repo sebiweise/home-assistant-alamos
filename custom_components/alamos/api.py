@@ -25,7 +25,12 @@ from urllib.parse import quote, quote_plus
 import aiohttp
 from yarl import URL
 
-from .const import FEEDBACK_MODES, FEEDBACK_PATH
+from .const import (
+    FEEDBACK_MODES,
+    FEEDBACK_PATH,
+    FEEDBACK_RESULT_NO_ALARM,
+    FEEDBACK_RESULT_SUCCESS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +64,7 @@ class FeedbackResult:
     @property
     def result(self) -> str:
         """Return a machine-readable result."""
-        return "success" if self.success else "no_alarm"
+        return FEEDBACK_RESULT_SUCCESS if self.success else FEEDBACK_RESULT_NO_ALARM
 
 
 class AlamosApiClient:

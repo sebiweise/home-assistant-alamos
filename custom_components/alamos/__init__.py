@@ -51,6 +51,9 @@ from .const import (
     EVENT_ALARM_CLEARED,
     EVENT_TYPE_CLEARED,
     FEEDBACK_MODES,
+    FEEDBACK_RESULT_ERROR,
+    FEEDBACK_RESULT_INVALID_API_KEY,
+    FEEDBACK_RESULT_NO_SUBSCRIPTION,
     MAX_WEBHOOKS,
     SERVICE_RESET_ALARM,
     SERVICE_RESET_ALARM_COUNT,
@@ -224,17 +227,17 @@ async def async_send_feedback(
     try:
         result = await runtime.client.async_send_feedback(mode, suppress_notification)
     except AlamosAuthError as err:
-        runtime.manager.async_feedback(mode, "invalid_api_key")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_INVALID_API_KEY)
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="invalid_api_key"
         ) from err
     except AlamosSubscriptionError as err:
-        runtime.manager.async_feedback(mode, "no_subscription")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_NO_SUBSCRIPTION)
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="no_subscription"
         ) from err
     except AlamosApiError as err:
-        runtime.manager.async_feedback(mode, "error")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_ERROR)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="api_error",

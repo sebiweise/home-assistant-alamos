@@ -14,6 +14,19 @@ FEEDBACK_PATH: Final = "/fe2/feedback/user/external"
 FEEDBACK_MODE_ACCEPT: Final = "accept"
 FEEDBACK_MODE_REJECT: Final = "reject"
 FEEDBACK_MODES: Final = [FEEDBACK_MODE_ACCEPT, FEEDBACK_MODE_REJECT]
+# Results of a feedback request, the options of the last_feedback sensor.
+FEEDBACK_RESULT_SUCCESS: Final = "success"
+FEEDBACK_RESULT_NO_ALARM: Final = "no_alarm"
+FEEDBACK_RESULT_INVALID_API_KEY: Final = "invalid_api_key"
+FEEDBACK_RESULT_NO_SUBSCRIPTION: Final = "no_subscription"
+FEEDBACK_RESULT_ERROR: Final = "error"
+FEEDBACK_RESULTS: Final = [
+    FEEDBACK_RESULT_SUCCESS,
+    FEEDBACK_RESULT_NO_ALARM,
+    FEEDBACK_RESULT_INVALID_API_KEY,
+    FEEDBACK_RESULT_NO_SUBSCRIPTION,
+    FEEDBACK_RESULT_ERROR,
+]
 # The API only answers alarms received within the last three minutes.
 FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 # aPager PRO Android (6.9.0+) calls the webhook once per alarmed unit. Webhooks

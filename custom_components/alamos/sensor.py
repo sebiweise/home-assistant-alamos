@@ -21,19 +21,11 @@ from homeassistant.helpers.typing import StateType
 
 from . import AlamosConfigEntry
 from .alarm import AlarmState
-from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK
+from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK, FEEDBACK_RESULTS
 from .entity import AlamosEntity, async_remove_webhook_entities, webhook_entity_numbers
 
 # Home Assistant does not accept states longer than 255 characters.
 MAX_STATE_LENGTH = 255
-
-FEEDBACK_RESULTS = [
-    "success",
-    "no_alarm",
-    "invalid_api_key",
-    "no_subscription",
-    "error",
-]
 
 
 @dataclass(frozen=True, kw_only=True)
