@@ -20,10 +20,17 @@ import asyncio
 from dataclasses import dataclass
 from http import HTTPStatus
 import logging
+from urllib.parse import quote, quote_plus
 
 import aiohttp
+from yarl import URL
 
-from .const import FEEDBACK_MODES, FEEDBACK_PATH
+from .const import (
+    FEEDBACK_MODES,
+    FEEDBACK_PATH,
+    FEEDBACK_RESULT_NO_ALARM,
+    FEEDBACK_RESULT_SUCCESS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +64,7 @@ class FeedbackResult:
     @property
     def result(self) -> str:
         """Return a machine-readable result."""
-        return "success" if self.success else "no_alarm"
+        return FEEDBACK_RESULT_SUCCESS if self.success else FEEDBACK_RESULT_NO_ALARM
 
 
 class AlamosApiClient:
@@ -89,7 +96,11 @@ class AlamosApiClient:
                 if status == HTTPStatus.METHOD_NOT_ALLOWED:
                     status = await self._request("POST", url, params)
         except (TimeoutError, aiohttp.ClientError) as err:
-            raise AlamosApiError(f"Error communicating with Alamos: {err}") from err
+            # aiohttp includes the request URL (with the authToken) in some
+            # errors, so the message is redacted and the cause not chained.
+            raise AlamosApiError(
+                f"Error communicating with Alamos: {self._redact(err)}"
+            ) from None
 
         _LOGGER.debug("Feedback '%s' answered with HTTP %s", mode, status)
 
@@ -104,6 +115,22 @@ class AlamosApiClient:
         if status == HTTPStatus.BAD_REQUEST:
             raise AlamosApiError("Alamos rejected the request (missing parameters)")
         raise AlamosApiError(f"Unexpected response from Alamos: HTTP {status}")
+
+    def _redact(self, err: BaseException) -> str:
+        """Describe an error without the API key."""
+        text = str(err)
+        # aiohttp/yarl encode the query differently than urllib.
+        yarl_encoded = URL.build(query={"k": self._api_key}).raw_query_string[2:]
+        for secret in {
+            self._api_key,
+            quote(self._api_key, safe=""),
+            quote_plus(self._api_key),
+            yarl_encoded,
+        }:
+            if secret:
+                text = text.replace(secret, "***")
+        name = type(err).__name__
+        return f"{name}: {text}" if text else name
 
     async def _request(self, method: str, url: str, params: dict[str, str]) -> int:
         async with self._session.request(method, url, params=params) as resp:
