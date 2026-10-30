@@ -20,6 +20,8 @@ concurrency:
 jobs:
   release:
     name: Create release
+    # Manual runs on other branches must not publish unmerged code.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -28,15 +30,21 @@ jobs:
         id: version
         run: |
           version="$(jq -r .version custom_components/alamos/manifest.json)"
+          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+          if ! [[ "$version" =~ $semver ]]; then
+            echo "Version in manifest.json is not SemVer" >&2
+            exit 1
+          fi
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: Check for existing release
         id: exists
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Release ${{ steps.version.outputs.tag }} already exists"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -52,8 +60,9 @@ jobs:
         if: steps.exists.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" alamos.zip \
+          gh release create "$TAG" alamos.zip \
             --target "$GITHUB_SHA" \
-            --title "${{ steps.version.outputs.tag }}" \
+            --title "$TAG" \
             --generate-notes
