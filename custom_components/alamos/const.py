@@ -6,6 +6,8 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "alamos"
+# hass.data key for the alarm state handed over while an entry reloads.
+DATA_ALARM_SNAPSHOTS: Final = f"{DOMAIN}_alarm_snapshots"
 
 # Alamos availability API (aPager PRO "Externer Zugriff" / Smart Home)
 DEFAULT_API_URL: Final = "https://alamos-backend.ey.r.appspot.com"

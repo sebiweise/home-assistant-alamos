@@ -75,6 +75,14 @@ class AlarmState:
     last_webhook: WebhookInfo | None = None
 
 
+@dataclass(slots=True)
+class AlarmSnapshot:
+    """State handed over to the manager of a reloaded config entry."""
+
+    state: AlarmState
+    recent: dict[str, tuple[datetime, str | None]]
+
+
 class AlamosAlarmManager:
     """Keep track of incoming alarms and notify entities."""
 
@@ -400,18 +408,55 @@ class AlamosAlarmManager:
             self.state.last_alarm = last_alarm
 
     @callback
+    def async_snapshot(self) -> AlarmSnapshot:
+        """Return the state to hand over when the config entry reloads."""
+        return AlarmSnapshot(state=self.state, recent=self._recent)
+
+    @callback
+    def async_load_snapshot(self, snapshot: AlarmSnapshot) -> None:
+        """Take over the state of the manager before the reload.
+
+        Call this before the entities are set up, so they start with the
+        running alarm, and ``async_resume`` once they are.
+        """
+        self.state = snapshot.state
+        self._recent = snapshot.recent
+        # The favorite unit may have changed with the options.
+        self.state.units = self._sort_units(self.state.units)
+        if self.state.units:
+            self.state.unit = self.state.units[0]
+
+    @callback
+    def async_resume(self) -> None:
+        """Schedule the auto reset of a running alarm taken over on reload.
+
+        The reset time counts from the start of the alarm, also if it was
+        changed with the options; a reset which is already due ends the alarm
+        right away.
+        """
+        state = self.state
+        if not state.active or state.last_alarm is None or self._reset_minutes <= 0:
+            return
+        reset = state.last_alarm + timedelta(minutes=self._reset_minutes)
+        remaining = reset - dt_util.utcnow()
+        if remaining <= timedelta(0):
+            self.async_clear(EVENT_TYPE_CLEARED)
+            return
+        self._schedule_reset(remaining)
+
+    @callback
     def async_shutdown(self) -> None:
         """Cancel pending timers."""
         self._cancel_timer()
 
     @callback
-    def _schedule_reset(self) -> None:
+    def _schedule_reset(self, delay: timedelta | None = None) -> None:
         self._cancel_timer()
         if self._reset_minutes <= 0:
             return
         self._cancel_reset = async_call_later(
             self.hass,
-            timedelta(minutes=self._reset_minutes),
+            delay or timedelta(minutes=self._reset_minutes),
             self._handle_timeout,
         )
 

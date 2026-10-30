@@ -63,6 +63,10 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
 | API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
 
+Speicherst du die Optionen während eines laufenden Alarms, bleibt der Alarm mit Stichwort und Einheiten erhalten. Das
+automatische Zurücksetzen zählt weiter ab Beginn des Alarms, mit der neu eingestellten Zeit. Ist diese Zeit schon
+abgelaufen, endet der Alarm sofort (mit `cleared`).
+
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
 **Optionen** der Integration. Sie haben folgende Form:
 
