@@ -22,7 +22,13 @@ from homeassistant.helpers.typing import StateType
 from . import AlamosConfigEntry
 from .alarm import AlarmState
 from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK, FEEDBACK_RESULTS
-from .entity import AlamosEntity, async_remove_webhook_entities, webhook_entity_numbers
+from .entity import (
+    KEY_ALARM_COUNT,
+    AlamosEntity,
+    async_remove_webhook_entities,
+    webhook_entity_numbers,
+    webhook_key,
+)
 
 # Home Assistant does not accept states longer than 255 characters.
 MAX_STATE_LENGTH = 255
@@ -62,7 +68,7 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
         value_fn=lambda state: state.last_alarm,
     ),
     AlamosSensorEntityDescription(
-        key="alarm_count",
+        key=KEY_ALARM_COUNT,
         translation_key="alarm_count",
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -111,7 +117,7 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
 
 def _webhook_alarm_count(number: int) -> AlamosSensorEntityDescription:
     return AlamosSensorEntityDescription(
-        key=f"alarm_count_{number}",
+        key=webhook_key(KEY_ALARM_COUNT, number),
         translation_key="webhook_alarm_count",
         translation_placeholders={"number": str(number)},
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -150,7 +156,7 @@ async def async_setup_entry(  # NOSONAR
     ]
     numbers = webhook_entity_numbers(entry)
     descriptions.extend(_webhook_alarm_count(number) for number in numbers)
-    async_remove_webhook_entities(hass, entry, SENSOR_DOMAIN, "alarm_count", numbers)
+    async_remove_webhook_entities(hass, entry, SENSOR_DOMAIN, KEY_ALARM_COUNT, numbers)
     async_add_entities(AlamosSensor(entry, description) for description in descriptions)
 
 
@@ -168,7 +174,7 @@ class AlamosSensor(AlamosEntity, RestoreSensor):
         if value is None:
             return
         description = self.entity_description
-        if description.key == "alarm_count" or description.webhook is not None:
+        if description.key == KEY_ALARM_COUNT or description.webhook is not None:
             self.manager.async_restore(
                 alarm_count=int(value), webhook=description.webhook
             )
