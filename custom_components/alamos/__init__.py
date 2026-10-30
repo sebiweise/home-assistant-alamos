@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+from yarl import URL
 
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -19,7 +20,7 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -108,12 +109,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
     )
 
     client: AlamosApiClient | None = None
+    api_url = options.get(CONF_API_URL) or DEFAULT_API_URL
     if api_key := options.get(CONF_API_KEY):
-        client = AlamosApiClient(
-            async_get_clientsession(hass),
-            api_key,
-            options.get(CONF_API_URL) or DEFAULT_API_URL,
-        )
+        client = AlamosApiClient(async_get_clientsession(hass), api_key, api_url)
+    _async_check_api_url(hass, entry, api_url if client else None)
 
     entry.runtime_data = AlamosRuntimeData(manager=manager, client=client)
 
@@ -180,6 +179,46 @@ def entry_webhook_count(entry: ConfigEntry) -> int:
 async def async_unload_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+# Home Assistant requires this exact coroutine signature.
+async def async_remove_entry(  # NOSONAR
+    hass: HomeAssistant, entry: AlamosConfigEntry
+) -> None:
+    """Remove the repair issue of a deleted entry."""
+    ir.async_delete_issue(hass, DOMAIN, _insecure_api_url_issue_id(entry))
+
+
+def _insecure_api_url_issue_id(entry: ConfigEntry) -> str:
+    return f"insecure_api_url_{entry.entry_id}"
+
+
+@callback
+def _async_check_api_url(
+    hass: HomeAssistant, entry: AlamosConfigEntry, api_url: str | None
+) -> None:
+    """Warn if the API key would be sent unencrypted.
+
+    Plain HTTP stays allowed, e.g. for a server in the local network, but
+    the API key is part of every feedback request.
+    """
+    issue_id = _insecure_api_url_issue_id(entry)
+    if api_url is None or URL(api_url).scheme != "http":
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+        return
+    _LOGGER.warning(
+        "The Alamos API URL of %s uses http://, the API key is sent unencrypted",
+        entry.title,
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="insecure_api_url",
+        translation_placeholders={"name": entry.title, "url": api_url},
+    )
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: AlamosConfigEntry) -> None:
@@ -250,25 +289,51 @@ async def async_send_feedback(
     }
 
 
+def _failed_feedback(
+    entry: AlamosConfigEntry, mode: str, err: HomeAssistantError
+) -> dict[str, Any]:
+    """Return the service response for an entry whose feedback failed."""
+    feedback = entry.runtime_data.manager.state.feedback
+    return {
+        "config_entry_id": entry.entry_id,
+        "mode": mode,
+        "status": None,
+        "result": feedback.result if feedback else "error",
+        "error": str(err),
+    }
+
+
 @callback
 def _async_register_services(hass: HomeAssistant) -> None:
     async def _handle_send_feedback(call: ServiceCall) -> ServiceResponse:
         entries = _async_get_entries(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
-        entries = [entry for entry in entries if entry.runtime_data.client is not None]
-        if not entries:
+        with_api = [entry for entry in entries if entry.runtime_data.client is not None]
+        if not with_api:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="no_api_key",
-                translation_placeholders={"name": DOMAIN},
+                translation_placeholders={
+                    "name": ", ".join(entry.title for entry in entries)
+                },
             )
-        results = [
-            await async_send_feedback(
-                entry,
-                call.data[ATTR_MODE],
-                call.data.get(ATTR_SUPPRESS_NOTIFICATION),
-            )
-            for entry in entries
-        ]
+        mode = call.data[ATTR_MODE]
+        results: list[dict[str, Any]] = []
+        errors: list[HomeAssistantError] = []
+        # A failing entry does not keep the others from answering; the
+        # service only fails if no entry could answer.
+        for entry in with_api:
+            try:
+                result = await async_send_feedback(
+                    entry, mode, call.data.get(ATTR_SUPPRESS_NOTIFICATION)
+                )
+            except HomeAssistantError as err:
+                _LOGGER.warning("Feedback for %s failed: %s", entry.title, err)
+                errors.append(err)
+                results.append(_failed_feedback(entry, mode, err))
+            else:
+                results.append(result)
+        if len(errors) == len(with_api):
+            raise errors[0]
         return {"results": results}
 
     @callback

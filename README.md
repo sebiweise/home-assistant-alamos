@@ -61,7 +61,7 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Favoriten-Einheit | Werden mehrere Einheiten alarmiert, steht diese Einheit immer an erster Stelle (Sensor „Einheit“, Attribute `unit` und `units`), egal in welcher Reihenfolge die Webhooks ankommen. Groß-/Kleinschreibung egal |
 | Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
-| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
+| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt. Eine `http://`-URL ist erlaubt (z. B. für einen Server im lokalen Netz), erzeugt aber eine Reparaturmeldung, weil der API-Schlüssel dann unverschlüsselt übertragen wird |
 
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
 **Optionen** der Integration. Sie haben folgende Form:
@@ -255,6 +255,11 @@ data:
   config_entry_id: abc123 # optional, sonst alle Einträge mit API-Schlüssel
 response_variable: result # optional: {"results": [{"status": 200, "result": "success", ...}]}
 ```
+
+Bei mehreren Einträgen meldet jeder Eintrag für sich zurück. Schlägt die Rückmeldung bei einem Eintrag fehl (z. B.
+falscher API-Schlüssel), melden die übrigen trotzdem zurück; der fehlgeschlagene Eintrag steht in `results` mit
+`status: null`, dem Ergebnis (z. B. `invalid_api_key`) und der Fehlermeldung in `error`. Der Service schlägt nur fehl,
+wenn kein Eintrag zurückmelden konnte.
 
 ### `alamos.reset_alarm`
 
