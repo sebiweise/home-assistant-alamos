@@ -137,6 +137,64 @@ async def test_webhook_post_json(hass: HomeAssistant, hass_client_no_auth) -> No
     assert hass.states.get("sensor.feuerwehr_keyword").state == "THL 1"
 
 
+async def test_webhook_put_json(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test that the body of a PUT webhook is read like a POST body."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    resp = await client.put(
+        f"/api/webhook/{WEBHOOK_ID}",
+        json={"keyword": "B2", "unit": "Florian 2"},
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+async def test_webhook_body_with_bad_charset(
+    hass: HomeAssistant, hass_client_no_auth, method: str
+) -> None:
+    """An unknown charset or invalid bytes in the body do not lose the alarm."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    resp = await client.request(
+        method,
+        f"/api/webhook/{WEBHOOK_ID}?keyword=B2",
+        data=b'{"unit": "Florian 2"}',
+        headers={"Content-Type": "application/json; charset=unknown-charset"},
+    )
+    assert resp.status == HTTPStatus.OK
+    assert await resp.text() == "ok"
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
+    assert hass.states.get("sensor.feuerwehr_unit").state == "Florian 2"
+
+    resp = await client.request(
+        method,
+        f"/api/webhook/{WEBHOOK_ID}?keyword=B3",
+        data=b"\xff\xfe not utf-8",
+        headers={"Content-Type": "text/plain; charset=utf-8"},
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3"
+
+
+async def test_long_keyword_truncated(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """A keyword longer than 255 characters is shortened for the state."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    keyword = "B" * 300
+    resp = await client.post(f"/api/webhook/{WEBHOOK_ID}", json={"keyword": keyword})
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.feuerwehr_keyword")
+    assert len(state.state) == 255
+    assert state.state.endswith("…")
+    assert state.attributes["data"]["keyword"] == keyword
+
+
 async def test_send_feedback(hass: HomeAssistant, aioclient_mock) -> None:
     """Test the feedback service and buttons."""
     await _setup(hass)
