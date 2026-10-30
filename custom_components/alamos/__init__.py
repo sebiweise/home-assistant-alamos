@@ -312,7 +312,7 @@ def _failed_feedback(
         "config_entry_id": entry.entry_id,
         "mode": mode,
         "status": None,
-        "result": feedback.result if feedback else "error",
+        "result": feedback.result if feedback else FEEDBACK_RESULT_ERROR,
         "error": str(err),
     }
 
