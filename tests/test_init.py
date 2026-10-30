@@ -16,6 +16,7 @@ from custom_components.alamos import entry_webhook_ids
 from custom_components.alamos.const import (
     CONF_ADDITIONAL_WEBHOOK_IDS,
     CONF_API_KEY,
+    CONF_API_URL,
     CONF_FAVORITE_UNIT,
     CONF_RESET_MINUTES,
     CONF_TEST_KEYWORDS,
@@ -31,8 +32,8 @@ from custom_components.alamos.const import (
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, State
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.setup import async_setup_component
 
 WEBHOOK_ID = "test_webhook"
@@ -232,6 +233,102 @@ async def test_send_feedback_invalid_key(hass: HomeAssistant, aioclient_mock) ->
             DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True
         )
     assert hass.states.get("sensor.feuerwehr_last_feedback").state == "invalid_api_key"
+
+
+async def _setup_second_entry(hass: HomeAssistant, api_key: str) -> MockConfigEntry:
+    """Set up a second profile, e.g. for a double membership."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rettungsdienst",
+        data={CONF_WEBHOOK_ID: "second_webhook"},
+        options={CONF_API_KEY: api_key},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_send_feedback_one_entry_fails(
+    hass: HomeAssistant, aioclient_mock
+) -> None:
+    """A failing entry does not keep the other entries from answering."""
+    first = await _setup(hass)
+    second = await _setup_second_entry(hass, "other")
+    aioclient_mock.get(f"{FEEDBACK_URL}?authToken=other", status=403)
+    aioclient_mock.get(f"{FEEDBACK_URL}?authToken=secret", status=200)
+
+    response = await hass.services.async_call(
+        DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True, return_response=True
+    )
+    results = {result["config_entry_id"]: result for result in response["results"]}
+    assert results[first.entry_id]["result"] == "success"
+    assert results[first.entry_id]["status"] == 200
+    assert results[second.entry_id]["result"] == "invalid_api_key"
+    assert results[second.entry_id]["status"] is None
+    assert results[second.entry_id]["error"]
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "success"
+    assert (
+        hass.states.get("sensor.rettungsdienst_last_feedback").state
+        == "invalid_api_key"
+    )
+
+
+async def test_send_feedback_all_entries_fail(
+    hass: HomeAssistant, aioclient_mock
+) -> None:
+    """The service only fails if no entry could answer."""
+    await _setup(hass)
+    await _setup_second_entry(hass, "other")
+    aioclient_mock.get(FEEDBACK_URL, status=409)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True
+        )
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "no_subscription"
+    assert (
+        hass.states.get("sensor.rettungsdienst_last_feedback").state
+        == "no_subscription"
+    )
+
+
+async def test_send_feedback_without_api_key_names_entry(
+    hass: HomeAssistant,
+) -> None:
+    """The error for a missing API key names the entry."""
+    entry = await _setup(hass, api_key="")
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            "send_feedback",
+            {"mode": "accept", "config_entry_id": entry.entry_id},
+            blocking=True,
+        )
+    assert err.value.translation_placeholders == {"name": "Feuerwehr"}
+
+
+async def test_insecure_api_url_issue(hass: HomeAssistant) -> None:
+    """An http:// API URL raises a repair issue until it is changed."""
+    entry = await _setup(hass, **{CONF_API_URL: "http://fe2.local"})
+    issue_id = f"insecure_api_url_{entry.entry_id}"
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, issue_id)
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.translation_placeholders["url"] == "http://fe2.local"
+    assert entry.runtime_data.client is not None
+
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_API_URL: "https://fe2.local"}
+    )
+    await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
+
+    # Without an API key nothing is sent, so there is nothing to warn about.
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_API_KEY: "", CONF_API_URL: "http://fe2.local"}
+    )
+    await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_without_api_key(hass: HomeAssistant) -> None:

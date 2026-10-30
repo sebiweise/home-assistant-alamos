@@ -62,7 +62,7 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Stichwörter für Probealarme | Enthält das Stichwort einen dieser Begriffe (z. B. `Probealarm`, `Test`), wird nur das Ereignis `test_alarm` ausgelöst. Alarm-Sensor und Zähler bleiben unverändert |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
 | Rohdaten im Verlauf speichern | Standardmäßig aus. Das Attribut `data` (alle empfangenen Parameter, unter Umständen mit Einsatzadresse oder Personendaten) steht dann nur im aktuellen Zustand, z. B. für Templates und Automationen, und wird nicht im Verlauf (Recorder) gespeichert. Einschalten, um es wie in früheren Versionen auch im Verlauf zu behalten |
-| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
+| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt. Eine `http://`-URL ist erlaubt (z. B. für einen Server im lokalen Netz), erzeugt aber eine Reparaturmeldung, weil der API-Schlüssel dann unverschlüsselt übertragen wird |
 
 Speicherst du die Optionen während eines laufenden Alarms, bleibt der Alarm mit Stichwort und Einheiten erhalten. Das
 automatische Zurücksetzen zählt weiter ab Beginn des Alarms, mit der neu eingestellten Zeit. Ist diese Zeit schon
@@ -267,6 +267,11 @@ data:
   config_entry_id: abc123 # optional, sonst alle Einträge mit API-Schlüssel
 response_variable: result # optional: {"results": [{"status": 200, "result": "success", ...}]}
 ```
+
+Bei mehreren Einträgen meldet jeder Eintrag für sich zurück. Schlägt die Rückmeldung bei einem Eintrag fehl (z. B.
+falscher API-Schlüssel), melden die übrigen trotzdem zurück; der fehlgeschlagene Eintrag steht in `results` mit
+`status: null`, dem Ergebnis (z. B. `invalid_api_key`) und der Fehlermeldung in `error`. Der Service schlägt nur fehl,
+wenn kein Eintrag zurückmelden konnte.
 
 ### `alamos.reset_alarm`
 
