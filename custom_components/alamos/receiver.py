@@ -47,7 +47,7 @@ async def _async_read_payload(request: web.Request) -> dict[str, Any]:
     """Merge query parameters and the request body into one dict."""
     data: dict[str, Any] = dict(request.query)
 
-    if request.method != "POST" or not request.can_read_body:
+    if request.method not in ("POST", "PUT") or not request.can_read_body:
         return data
 
     raw = await request.text()

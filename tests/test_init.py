@@ -137,6 +137,20 @@ async def test_webhook_post_json(hass: HomeAssistant, hass_client_no_auth) -> No
     assert hass.states.get("sensor.feuerwehr_keyword").state == "THL 1"
 
 
+async def test_webhook_put_json(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test that the body of a PUT webhook is read like a POST body."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    resp = await client.put(
+        f"/api/webhook/{WEBHOOK_ID}",
+        json={"keyword": "B2", "unit": "Florian 2"},
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
+
+
 async def test_send_feedback(hass: HomeAssistant, aioclient_mock) -> None:
     """Test the feedback service and buttons."""
     await _setup(hass)
