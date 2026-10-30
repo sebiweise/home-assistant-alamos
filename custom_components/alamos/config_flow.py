@@ -25,6 +25,7 @@ from .const import (
     CONF_API_URL,
     CONF_FAVORITE_UNIT,
     CONF_KEYWORD_PARAM,
+    CONF_RECORD_RAW_DATA,
     CONF_RESET_MINUTES,
     CONF_SUPPRESS_NOTIFICATION,
     CONF_TEST_KEYWORDS,
@@ -34,6 +35,7 @@ from .const import (
     CONF_WEBHOOK_ID,
     DEFAULT_API_URL,
     DEFAULT_KEYWORD_PARAM,
+    DEFAULT_RECORD_RAW_DATA,
     DEFAULT_RESET_MINUTES,
     DEFAULT_UNIT_PARAM,
     DEFAULT_WEBHOOK_COUNT,
@@ -126,6 +128,10 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 CONF_UNIT_PARAM,
                 default=options.get(CONF_UNIT_PARAM, DEFAULT_UNIT_PARAM),
             ): selector.TextSelector(),
+            vol.Optional(
+                CONF_RECORD_RAW_DATA,
+                default=options.get(CONF_RECORD_RAW_DATA, DEFAULT_RECORD_RAW_DATA),
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_API_URL,
                 default=options.get(CONF_API_URL, DEFAULT_API_URL),

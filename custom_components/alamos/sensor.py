@@ -25,7 +25,9 @@ from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK, FEEDBACK_RESU
 from .entity import (
     KEY_ALARM_COUNT,
     AlamosEntity,
+    UnrecordedDataMixin,
     async_remove_webhook_entities,
+    record_raw_data,
     webhook_entity_numbers,
     webhook_key,
 )
@@ -157,7 +159,10 @@ async def async_setup_entry(  # NOSONAR
     numbers = webhook_entity_numbers(entry)
     descriptions.extend(_webhook_alarm_count(number) for number in numbers)
     async_remove_webhook_entities(hass, entry, SENSOR_DOMAIN, KEY_ALARM_COUNT, numbers)
-    async_add_entities(AlamosSensor(entry, description) for description in descriptions)
+    entity_class = (
+        AlamosSensor if record_raw_data(entry) else AlamosSensorUnrecordedData
+    )
+    async_add_entities(entity_class(entry, description) for description in descriptions)
 
 
 class AlamosSensor(AlamosEntity, RestoreSensor):
@@ -192,3 +197,7 @@ class AlamosSensor(AlamosEntity, RestoreSensor):
         if self.entity_description.attrs_fn is None:
             return None
         return self.entity_description.attrs_fn(self.manager.state)
+
+
+class AlamosSensorUnrecordedData(UnrecordedDataMixin, AlamosSensor):
+    """Sensor without the raw data in the history."""
