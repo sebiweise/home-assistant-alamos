@@ -13,6 +13,11 @@ updates:
 
   - package-ecosystem: pip
     directory: /
+    # Pinned to the oldest supported Home Assistant on purpose
+    # (scripts/lock_min), not to be updated.
+    exclude-paths:
+      - requirements_test_min.in
+      - requirements_test_min.txt
     schedule:
       interval: weekly
     commit-message:

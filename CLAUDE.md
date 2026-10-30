@@ -32,6 +32,11 @@ let an alarm through rather than drop it.
   `scripts/test` runs Ruff check, Ruff format check and pytest (must pass
   before every PR), `scripts/develop` starts Home Assistant on port 8123,
   `scripts/lock` regenerates `requirements_test.txt`.
+- The minimum Home Assistant version lives in `hacs.json`; blueprints and
+  `.coderabbit.yaml` repeat it (`tests/test_min_version.py` checks that).
+  The CI job `tests-min` runs pytest against it with
+  `requirements_test_min.txt`; after raising it, update
+  `requirements_test_min.in` and run `scripts/lock_min` (Python 3.12).
 - Changes go through a pull request against `master`. Releases bump
   `version` in `manifest.json` (SemVer); `release.yml` tags and publishes
   after the merge.
