@@ -23,7 +23,8 @@ let an alarm through rather than drop it.
   `brand/`
 - Blueprints: `blueprints/automation/alamos/`
 - Tests: `tests/test_init.py`, `tests/test_blueprints.py` (blueprints run in
-  Home Assistant), `tests/test_brand.py`
+  Home Assistant), `tests/test_brand.py`, `tests/test_translations.py`
+  (en.json equals strings.json, de.json has the same keys), `tests/test_api.py`
 
 ## Workflow
 

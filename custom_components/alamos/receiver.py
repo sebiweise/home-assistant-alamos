@@ -38,14 +38,26 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _decode_body(body: bytes, charset: str | None) -> str:
+    """Decode the request body without ever failing.
+
+    aPager PRO sends UTF-8. An unknown charset falls back to UTF-8 and
+    undecodable bytes are replaced, so the alarm still gets through.
+    """
+    try:
+        return body.decode(charset or "utf-8", errors="replace")
+    except LookupError:
+        return body.decode("utf-8", errors="replace")
+
+
 async def _async_read_payload(request: web.Request) -> dict[str, Any]:
     """Merge query parameters and the request body into one dict."""
     data: dict[str, Any] = dict(request.query)
 
-    if request.method != "POST" or not request.can_read_body:
+    if request.method not in ("POST", "PUT") or not request.can_read_body:
         return data
 
-    raw = await request.text()
+    raw = _decode_body(await request.read(), request.charset)
     if not raw.strip():
         return data
 
