@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+from yarl import URL
 
 from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -19,7 +20,7 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -43,6 +44,7 @@ from .const import (
     CONF_SUPPRESS_NOTIFICATION,
     CONF_WEBHOOK_COUNT,
     CONF_WEBHOOK_ID,
+    DATA_ALARM_SNAPSHOTS,
     DEFAULT_API_URL,
     DEFAULT_RESET_MINUTES,
     DEFAULT_WEBHOOK_COUNT,
@@ -51,6 +53,9 @@ from .const import (
     EVENT_ALARM_CLEARED,
     EVENT_TYPE_CLEARED,
     FEEDBACK_MODES,
+    FEEDBACK_RESULT_ERROR,
+    FEEDBACK_RESULT_INVALID_API_KEY,
+    FEEDBACK_RESULT_NO_SUBSCRIPTION,
     MAX_WEBHOOKS,
     SERVICE_RESET_ALARM,
     SERVICE_RESET_ALARM_COUNT,
@@ -106,14 +111,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         int(options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES)),
         options.get(CONF_FAVORITE_UNIT) or None,
     )
+    # A running alarm survives the reload after an options change.
+    snapshot = hass.data.get(DATA_ALARM_SNAPSHOTS, {}).pop(entry.entry_id, None)
+    if snapshot is not None:
+        manager.async_load_snapshot(snapshot)
 
     client: AlamosApiClient | None = None
+    api_url = options.get(CONF_API_URL) or DEFAULT_API_URL
     if api_key := options.get(CONF_API_KEY):
-        client = AlamosApiClient(
-            async_get_clientsession(hass),
-            api_key,
-            options.get(CONF_API_URL) or DEFAULT_API_URL,
-        )
+        client = AlamosApiClient(async_get_clientsession(hass), api_key, api_url)
+    _async_check_api_url(hass, entry, api_url if client else None)
 
     entry.runtime_data = AlamosRuntimeData(manager=manager, client=client)
 
@@ -142,6 +149,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         )
         entry.async_on_unload(partial(webhook.async_unregister, hass, webhook_id))
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    if snapshot is not None:
+        manager.async_resume()
 
     return True
 
@@ -182,8 +191,52 @@ async def async_unload_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> b
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+# Home Assistant requires this exact coroutine signature.
+async def async_remove_entry(  # NOSONAR
+    hass: HomeAssistant, entry: AlamosConfigEntry
+) -> None:
+    """Remove the repair issue of a deleted entry."""
+    ir.async_delete_issue(hass, DOMAIN, _insecure_api_url_issue_id(entry))
+
+
+def _insecure_api_url_issue_id(entry: ConfigEntry) -> str:
+    return f"insecure_api_url_{entry.entry_id}"
+
+
+@callback
+def _async_check_api_url(
+    hass: HomeAssistant, entry: AlamosConfigEntry, api_url: str | None
+) -> None:
+    """Warn if the API key would be sent unencrypted.
+
+    Plain HTTP stays allowed, e.g. for a server in the local network, but
+    the API key is part of every feedback request.
+    """
+    issue_id = _insecure_api_url_issue_id(entry)
+    if api_url is None or URL(api_url).scheme != "http":
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+        return
+    _LOGGER.warning(
+        "The Alamos API URL of %s uses http://, the API key is sent unencrypted",
+        entry.title,
+    )
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="insecure_api_url",
+        translation_placeholders={"name": entry.title, "url": api_url},
+    )
+
+
 async def _async_update_listener(hass: HomeAssistant, entry: AlamosConfigEntry) -> None:
-    """Reload the entry when the options change."""
+    """Reload the entry when the options change, keeping a running alarm."""
+    if entry.state is ConfigEntryState.LOADED:
+        hass.data.setdefault(DATA_ALARM_SNAPSHOTS, {})[entry.entry_id] = (
+            entry.runtime_data.manager.async_snapshot()
+        )
     await hass.config_entries.async_reload(entry.entry_id)
 
 
@@ -224,17 +277,17 @@ async def async_send_feedback(
     try:
         result = await runtime.client.async_send_feedback(mode, suppress_notification)
     except AlamosAuthError as err:
-        runtime.manager.async_feedback(mode, "invalid_api_key")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_INVALID_API_KEY)
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="invalid_api_key"
         ) from err
     except AlamosSubscriptionError as err:
-        runtime.manager.async_feedback(mode, "no_subscription")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_NO_SUBSCRIPTION)
         raise HomeAssistantError(
             translation_domain=DOMAIN, translation_key="no_subscription"
         ) from err
     except AlamosApiError as err:
-        runtime.manager.async_feedback(mode, "error")
+        runtime.manager.async_feedback(mode, FEEDBACK_RESULT_ERROR)
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="api_error",
@@ -250,25 +303,51 @@ async def async_send_feedback(
     }
 
 
+def _failed_feedback(
+    entry: AlamosConfigEntry, mode: str, err: HomeAssistantError
+) -> dict[str, Any]:
+    """Return the service response for an entry whose feedback failed."""
+    feedback = entry.runtime_data.manager.state.feedback
+    return {
+        "config_entry_id": entry.entry_id,
+        "mode": mode,
+        "status": None,
+        "result": feedback.result if feedback else FEEDBACK_RESULT_ERROR,
+        "error": str(err),
+    }
+
+
 @callback
 def _async_register_services(hass: HomeAssistant) -> None:
     async def _handle_send_feedback(call: ServiceCall) -> ServiceResponse:
         entries = _async_get_entries(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
-        entries = [entry for entry in entries if entry.runtime_data.client is not None]
-        if not entries:
+        with_api = [entry for entry in entries if entry.runtime_data.client is not None]
+        if not with_api:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="no_api_key",
-                translation_placeholders={"name": DOMAIN},
+                translation_placeholders={
+                    "name": ", ".join(entry.title for entry in entries)
+                },
             )
-        results = [
-            await async_send_feedback(
-                entry,
-                call.data[ATTR_MODE],
-                call.data.get(ATTR_SUPPRESS_NOTIFICATION),
-            )
-            for entry in entries
-        ]
+        mode = call.data[ATTR_MODE]
+        results: list[dict[str, Any]] = []
+        errors: list[HomeAssistantError] = []
+        # A failing entry does not keep the others from answering; the
+        # service only fails if no entry could answer.
+        for entry in with_api:
+            try:
+                result = await async_send_feedback(
+                    entry, mode, call.data.get(ATTR_SUPPRESS_NOTIFICATION)
+                )
+            except HomeAssistantError as err:
+                _LOGGER.warning("Feedback for %s failed: %s", entry.title, err)
+                errors.append(err)
+                results.append(_failed_feedback(entry, mode, err))
+            else:
+                results.append(result)
+        if len(errors) == len(with_api):
+            raise errors[0]
         return {"results": results}
 
     @callback

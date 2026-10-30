@@ -14,11 +14,19 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import AlamosConfigEntry
 from .const import EVENT_TYPE_ALARM, EVENT_TYPE_CLEARED, EVENT_TYPE_TEST_ALARM
-from .entity import AlamosEntity, async_remove_webhook_entities, webhook_entity_numbers
+from .entity import (
+    KEY_WEBHOOK_EVENT,
+    AlamosEntity,
+    UnrecordedDataMixin,
+    async_remove_webhook_entities,
+    record_raw_data,
+    webhook_entity_numbers,
+    webhook_key,
+)
 
 EVENT_TYPES = [EVENT_TYPE_ALARM, EVENT_TYPE_TEST_ALARM, EVENT_TYPE_CLEARED]
 EVENT_DESCRIPTION = EventEntityDescription(
-    key="webhook",
+    key=KEY_WEBHOOK_EVENT,
     translation_key="webhook",
     event_types=EVENT_TYPES,
 )
@@ -26,7 +34,7 @@ EVENT_DESCRIPTION = EventEntityDescription(
 
 def _webhook_event(number: int) -> EventEntityDescription:
     return EventEntityDescription(
-        key=f"webhook_{number}",
+        key=webhook_key(KEY_WEBHOOK_EVENT, number),
         translation_key="webhook_alarm_event",
         translation_placeholders={"number": str(number)},
         event_types=EVENT_TYPES,
@@ -41,12 +49,17 @@ async def async_setup_entry(  # NOSONAR
 ) -> None:
     """Set up the event entities."""
     numbers = webhook_entity_numbers(entry)
-    async_remove_webhook_entities(hass, entry, EVENT_DOMAIN, "webhook", numbers)
+    async_remove_webhook_entities(hass, entry, EVENT_DOMAIN, KEY_WEBHOOK_EVENT, numbers)
+    if record_raw_data(entry):
+        event_class, webhook_event_class = AlamosEvent, AlamosWebhookEvent
+    else:
+        event_class = AlamosEventUnrecordedData
+        webhook_event_class = AlamosWebhookEventUnrecordedData
     async_add_entities(
         [
-            AlamosEvent(entry, EVENT_DESCRIPTION),
+            event_class(entry, EVENT_DESCRIPTION),
             *(
-                AlamosWebhookEvent(entry, _webhook_event(number), number)
+                webhook_event_class(entry, _webhook_event(number), number)
                 for number in numbers
             ),
         ]
@@ -94,3 +107,11 @@ class AlamosWebhookEvent(AlamosEntity, EventEntity):
             return
         self._trigger_event(event_type, data)
         self.async_write_ha_state()
+
+
+class AlamosEventUnrecordedData(UnrecordedDataMixin, AlamosEvent):
+    """Alarm event without the raw data in the history."""
+
+
+class AlamosWebhookEventUnrecordedData(UnrecordedDataMixin, AlamosWebhookEvent):
+    """Webhook alarm event without the raw data in the history."""

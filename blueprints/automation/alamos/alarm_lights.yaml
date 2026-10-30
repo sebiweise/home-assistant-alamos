@@ -60,6 +60,9 @@ triggers:
 variables:
   only_when_dark: !input only_when_dark
   light_entities: !input lights
+  # One snapshot per automation, so several automations from this blueprint
+  # do not overwrite each other's snapshot.
+  snapshot_id: "alamos_light_snapshot_{{ this.entity_id | replace('automation.', '') }}"
 
 conditions:
   - condition: template
@@ -68,7 +71,7 @@ conditions:
 actions:
   - action: scene.create
     data:
-      scene_id: alamos_light_snapshot
+      scene_id: "{{ snapshot_id }}"
       snapshot_entities: "{{ light_entities }}"
   - action: light.turn_on
     target:
@@ -84,4 +87,4 @@ actions:
     continue_on_timeout: true
   - action: scene.turn_on
     target:
-      entity_id: scene.alamos_light_snapshot
+      entity_id: "scene.{{ snapshot_id }}"

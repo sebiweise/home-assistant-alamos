@@ -31,14 +31,17 @@
           "api_url": "API base URL",
           "unit_filter": "Unit filter",
           "favorite_unit": "Favorite unit",
-          "test_keywords": "Test alarm keywords"
+          "test_keywords": "Test alarm keywords",
+          "record_raw_data": "Store raw data in the history"
         },
         "data_description": {
           "unit_filter": "Only process alarms of these units (case-insensitive). Empty = all. Alarms without a unit are always processed.",
           "favorite_unit": "If several units are alerted, this unit is always listed first and used as the main unit (case-insensitive).",
           "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
           "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL.",
-          "webhook_count": "Number of webhooks (1–5) with their own alarm count. All 5 webhook URLs above are always active; `?event=recall` and `?event=clear` work with every URL."
+          "webhook_count": "Number of webhooks (1–5) with their own alarm count. All 5 webhook URLs above are always active; `?event=recall` and `?event=clear` work with every URL.",
+          "record_raw_data": "The attribute `data` contains all received parameters, possibly the address of the incident or personal data. It is always available in the current state; enable this to also store it in the history (recorder).",
+          "api_url": "Only change this if Alamos moves the API. Use https://: the API key is part of every feedback request."
         }
       }
     }
@@ -229,6 +232,12 @@
     },
     "api_error": {
       "message": "Error communicating with the Alamos API: {error}"
+    }
+  },
+  "issues": {
+    "insecure_api_url": {
+      "title": "Alamos API key of {name} is sent unencrypted",
+      "description": "The API base URL `{url}` of {name} uses http://, so the API key is sent unencrypted with every feedback. Change it to https:// in the options of the integration, unless the server is only reachable in your local network."
     }
   }
 }

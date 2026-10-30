@@ -16,6 +16,7 @@ from custom_components.alamos import entry_webhook_ids
 from custom_components.alamos.const import (
     CONF_ADDITIONAL_WEBHOOK_IDS,
     CONF_API_KEY,
+    CONF_API_URL,
     CONF_FAVORITE_UNIT,
     CONF_RESET_MINUTES,
     CONF_TEST_KEYWORDS,
@@ -31,8 +32,8 @@ from custom_components.alamos.const import (
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, State
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.setup import async_setup_component
 
 WEBHOOK_ID = "test_webhook"
@@ -137,6 +138,64 @@ async def test_webhook_post_json(hass: HomeAssistant, hass_client_no_auth) -> No
     assert hass.states.get("sensor.feuerwehr_keyword").state == "THL 1"
 
 
+async def test_webhook_put_json(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """Test that the body of a PUT webhook is read like a POST body."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    resp = await client.put(
+        f"/api/webhook/{WEBHOOK_ID}",
+        json={"keyword": "B2", "unit": "Florian 2"},
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+async def test_webhook_body_with_bad_charset(
+    hass: HomeAssistant, hass_client_no_auth, method: str
+) -> None:
+    """An unknown charset or invalid bytes in the body do not lose the alarm."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    resp = await client.request(
+        method,
+        f"/api/webhook/{WEBHOOK_ID}?keyword=B2",
+        data=b'{"unit": "Florian 2"}',
+        headers={"Content-Type": "application/json; charset=unknown-charset"},
+    )
+    assert resp.status == HTTPStatus.OK
+    assert await resp.text() == "ok"
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
+    assert hass.states.get("sensor.feuerwehr_unit").state == "Florian 2"
+
+    resp = await client.request(
+        method,
+        f"/api/webhook/{WEBHOOK_ID}?keyword=B3",
+        data=b"\xff\xfe not utf-8",
+        headers={"Content-Type": "text/plain; charset=utf-8"},
+    )
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3"
+
+
+async def test_long_keyword_truncated(hass: HomeAssistant, hass_client_no_auth) -> None:
+    """A keyword longer than 255 characters is shortened for the state."""
+    await _setup(hass)
+    client = await hass_client_no_auth()
+    keyword = "B" * 300
+    resp = await client.post(f"/api/webhook/{WEBHOOK_ID}", json={"keyword": keyword})
+    assert resp.status == HTTPStatus.OK
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.feuerwehr_keyword")
+    assert len(state.state) == 255
+    assert state.state.endswith("…")
+    assert state.attributes["data"]["keyword"] == keyword
+
+
 async def test_send_feedback(hass: HomeAssistant, aioclient_mock) -> None:
     """Test the feedback service and buttons."""
     await _setup(hass)
@@ -174,6 +233,102 @@ async def test_send_feedback_invalid_key(hass: HomeAssistant, aioclient_mock) ->
             DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True
         )
     assert hass.states.get("sensor.feuerwehr_last_feedback").state == "invalid_api_key"
+
+
+async def _setup_second_entry(hass: HomeAssistant, api_key: str) -> MockConfigEntry:
+    """Set up a second profile, e.g. for a double membership."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Rettungsdienst",
+        data={CONF_WEBHOOK_ID: "second_webhook"},
+        options={CONF_API_KEY: api_key},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def test_send_feedback_one_entry_fails(
+    hass: HomeAssistant, aioclient_mock
+) -> None:
+    """A failing entry does not keep the other entries from answering."""
+    first = await _setup(hass)
+    second = await _setup_second_entry(hass, "other")
+    aioclient_mock.get(f"{FEEDBACK_URL}?authToken=other", status=403)
+    aioclient_mock.get(f"{FEEDBACK_URL}?authToken=secret", status=200)
+
+    response = await hass.services.async_call(
+        DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True, return_response=True
+    )
+    results = {result["config_entry_id"]: result for result in response["results"]}
+    assert results[first.entry_id]["result"] == "success"
+    assert results[first.entry_id]["status"] == 200
+    assert results[second.entry_id]["result"] == "invalid_api_key"
+    assert results[second.entry_id]["status"] is None
+    assert results[second.entry_id]["error"]
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "success"
+    assert (
+        hass.states.get("sensor.rettungsdienst_last_feedback").state
+        == "invalid_api_key"
+    )
+
+
+async def test_send_feedback_all_entries_fail(
+    hass: HomeAssistant, aioclient_mock
+) -> None:
+    """The service only fails if no entry could answer."""
+    await _setup(hass)
+    await _setup_second_entry(hass, "other")
+    aioclient_mock.get(FEEDBACK_URL, status=409)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "send_feedback", {"mode": "accept"}, blocking=True
+        )
+    assert hass.states.get("sensor.feuerwehr_last_feedback").state == "no_subscription"
+    assert (
+        hass.states.get("sensor.rettungsdienst_last_feedback").state
+        == "no_subscription"
+    )
+
+
+async def test_send_feedback_without_api_key_names_entry(
+    hass: HomeAssistant,
+) -> None:
+    """The error for a missing API key names the entry."""
+    entry = await _setup(hass, api_key="")
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN,
+            "send_feedback",
+            {"mode": "accept", "config_entry_id": entry.entry_id},
+            blocking=True,
+        )
+    assert err.value.translation_placeholders == {"name": "Feuerwehr"}
+
+
+async def test_insecure_api_url_issue(hass: HomeAssistant) -> None:
+    """An http:// API URL raises a repair issue until it is changed."""
+    entry = await _setup(hass, **{CONF_API_URL: "http://fe2.local"})
+    issue_id = f"insecure_api_url_{entry.entry_id}"
+    registry = ir.async_get(hass)
+    issue = registry.async_get_issue(DOMAIN, issue_id)
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.translation_placeholders["url"] == "http://fe2.local"
+    assert entry.runtime_data.client is not None
+
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_API_URL: "https://fe2.local"}
+    )
+    await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
+
+    # Without an API key nothing is sent, so there is nothing to warn about.
+    hass.config_entries.async_update_entry(
+        entry, options={CONF_API_KEY: "", CONF_API_URL: "http://fe2.local"}
+    )
+    await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_without_api_key(hass: HomeAssistant) -> None:
@@ -806,3 +961,126 @@ async def test_webhook_event_entities_are_removed(hass: HomeAssistant) -> None:
     assert not registry.async_get("event.feuerwehr_alarm_event_webhook_1")
     assert not registry.async_get("event.feuerwehr_alarm_event_webhook_2")
     assert registry.async_get("event.feuerwehr_alarm_event")
+
+
+async def test_options_change_keeps_running_alarm(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """Saving the options during an alarm keeps it and its auto reset."""
+    entry = await _setup(hass)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    await client.get(url, params={"keyword": "B3", "unit": "LZ1"})
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**entry.options, CONF_RESET_MINUTES: 15, CONF_FAVORITE_UNIT: "LZ2"},
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3"
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "1"
+    # The alarm still merges the webhooks of further units.
+    resp = await client.get(url, params={"keyword": "B3", "unit": "LZ2"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.feuerwehr_unit").state == "LZ2, LZ1"
+    assert not cleared
+
+    # The new reset time counts from the start of the alarm.
+    freezer.tick(timedelta(minutes=14))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    freezer.tick(timedelta(minutes=2))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert len(cleared) == 1
+
+
+async def test_options_change_ends_overdue_alarm(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """A shorter reset time which has already passed ends the alarm on reload."""
+    entry = await _setup(hass)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+
+    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "B3"})
+    freezer.tick(timedelta(minutes=10))
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_RESET_MINUTES: 5}
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3"
+    assert len(cleared) == 1
+
+
+async def test_replaced_alarm_clears_its_webhooks(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """A new alarm replacing the running one sends "cleared" to its webhooks."""
+    entry = await _setup(hass, **{CONF_WEBHOOK_COUNT: 2})
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    urls = [f"/api/webhook/{webhook_id}" for webhook_id in entry_webhook_ids(entry)]
+
+    await client.get(urls[1], params={"keyword": "B3", "unit": "RD"})
+    resp = await client.get(urls[0], params={"keyword": "THL", "unit": "LZ1"})
+    assert await resp.text() == "ok"
+    await hass.async_block_till_done()
+
+    state = hass.states.get("event.feuerwehr_alarm_event_webhook_2")
+    assert state.attributes["event_type"] == "cleared"
+    state = hass.states.get("event.feuerwehr_alarm_event_webhook_1")
+    assert state.attributes["event_type"] == "alarm"
+    assert state.attributes["keyword"] == "THL"
+    # The alarm itself goes on with the new keyword, so the entry stays silent.
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "THL"
+    assert not cleared
+
+    # The cleared webhook joins the new alarm again.
+    resp = await client.get(urls[1], params={"keyword": "THL", "unit": "RD"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+    state = hass.states.get("event.feuerwehr_alarm_event_webhook_2")
+    assert state.attributes["event_type"] == "alarm"
+
+
+async def test_event_data_of_merged_webhooks(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """Merged webhooks report all units so far and the deadline of the alarm."""
+    freezer.move_to("2026-10-07 18:00:00+00:00")
+    entry = await _setup(hass, **{CONF_WEBHOOK_COUNT: 2})
+    alarms = async_capture_events(hass, EVENT_ALARM)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    urls = [f"/api/webhook/{webhook_id}" for webhook_id in entry_webhook_ids(entry)]
+
+    await client.get(urls[0], params={"keyword": "B3", "unit": "LZ1"})
+    freezer.tick(timedelta(seconds=10))
+    await client.get(urls[1], params={"keyword": "B3", "unit": "RD"})
+    await hass.async_block_till_done()
+
+    deadline = "2026-10-07T18:03:00+00:00"
+    assert alarms[0].data["units"] == ["LZ1"]
+    assert alarms[0].data["feedback_deadline"] == deadline
+    second = hass.states.get("event.feuerwehr_alarm_event_webhook_2")
+    assert second.attributes["unit"] == "RD"
+    assert second.attributes["units"] == ["LZ1", "RD"]
+    assert second.attributes["test"] is False
+    assert second.attributes["feedback_deadline"] == deadline
+
+    await client.get(urls[1], params={"event": "recall", "keyword": "B3", "unit": "RD"})
+    await hass.async_block_till_done()
+    assert cleared[0].data["recall"] is True
+    assert cleared[0].data["unit"] == "RD"
+    assert cleared[0].data["units"] == ["RD"]
+    assert cleared[0].data["webhook"] == 2

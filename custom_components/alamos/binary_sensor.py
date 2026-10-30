@@ -20,7 +20,7 @@ from .const import (
     ATTR_UNIT,
     ATTR_UNITS,
 )
-from .entity import AlamosEntity
+from .entity import AlamosEntity, UnrecordedDataMixin, record_raw_data
 
 ALARM_DESCRIPTION = BinarySensorEntityDescription(
     key="alarm",
@@ -35,7 +35,12 @@ async def async_setup_entry(  # NOSONAR
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the binary sensor."""
-    async_add_entities([AlamosAlarmBinarySensor(entry, ALARM_DESCRIPTION)])
+    entity_class = (
+        AlamosAlarmBinarySensor
+        if record_raw_data(entry)
+        else AlamosAlarmBinarySensorUnrecordedData
+    )
+    async_add_entities([entity_class(entry, ALARM_DESCRIPTION)])
 
 
 class AlamosAlarmBinarySensor(AlamosEntity, BinarySensorEntity):
@@ -62,3 +67,9 @@ class AlamosAlarmBinarySensor(AlamosEntity, BinarySensorEntity):
                 else None
             ),
         }
+
+
+class AlamosAlarmBinarySensorUnrecordedData(
+    UnrecordedDataMixin, AlamosAlarmBinarySensor
+):
+    """Alarm binary sensor without the raw data in the history."""
