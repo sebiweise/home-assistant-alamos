@@ -43,6 +43,7 @@ from .const import (
     CONF_SUPPRESS_NOTIFICATION,
     CONF_WEBHOOK_COUNT,
     CONF_WEBHOOK_ID,
+    DATA_ALARM_SNAPSHOTS,
     DEFAULT_API_URL,
     DEFAULT_RESET_MINUTES,
     DEFAULT_WEBHOOK_COUNT,
@@ -106,6 +107,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         int(options.get(CONF_RESET_MINUTES, DEFAULT_RESET_MINUTES)),
         options.get(CONF_FAVORITE_UNIT) or None,
     )
+    # A running alarm survives the reload after an options change.
+    snapshot = hass.data.get(DATA_ALARM_SNAPSHOTS, {}).pop(entry.entry_id, None)
+    if snapshot is not None:
+        manager.async_load_snapshot(snapshot)
 
     client: AlamosApiClient | None = None
     if api_key := options.get(CONF_API_KEY):
@@ -142,6 +147,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> bo
         )
         entry.async_on_unload(partial(webhook.async_unregister, hass, webhook_id))
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    if snapshot is not None:
+        manager.async_resume()
 
     return True
 
@@ -183,7 +190,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: AlamosConfigEntry) -> b
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: AlamosConfigEntry) -> None:
-    """Reload the entry when the options change."""
+    """Reload the entry when the options change, keeping a running alarm."""
+    if entry.state is ConfigEntryState.LOADED:
+        hass.data.setdefault(DATA_ALARM_SNAPSHOTS, {})[entry.entry_id] = (
+            entry.runtime_data.manager.async_snapshot()
+        )
     await hass.config_entries.async_reload(entry.entry_id)
 
 

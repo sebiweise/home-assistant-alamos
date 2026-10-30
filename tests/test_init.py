@@ -806,3 +806,61 @@ async def test_webhook_event_entities_are_removed(hass: HomeAssistant) -> None:
     assert not registry.async_get("event.feuerwehr_alarm_event_webhook_1")
     assert not registry.async_get("event.feuerwehr_alarm_event_webhook_2")
     assert registry.async_get("event.feuerwehr_alarm_event")
+
+
+async def test_options_change_keeps_running_alarm(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """Saving the options during an alarm keeps it and its auto reset."""
+    entry = await _setup(hass)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+    url = f"/api/webhook/{WEBHOOK_ID}"
+
+    await client.get(url, params={"keyword": "B3", "unit": "LZ1"})
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**entry.options, CONF_RESET_MINUTES: 15, CONF_FAVORITE_UNIT: "LZ2"},
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3"
+    assert hass.states.get("sensor.feuerwehr_alarm_count").state == "1"
+    # The alarm still merges the webhooks of further units.
+    resp = await client.get(url, params={"keyword": "B3", "unit": "LZ2"})
+    assert await resp.text() == "merged"
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.feuerwehr_unit").state == "LZ2, LZ1"
+    assert not cleared
+
+    # The new reset time counts from the start of the alarm.
+    freezer.tick(timedelta(minutes=14))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "on"
+    freezer.tick(timedelta(minutes=2))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert len(cleared) == 1
+
+
+async def test_options_change_ends_overdue_alarm(
+    hass: HomeAssistant, hass_client_no_auth, freezer
+) -> None:
+    """A shorter reset time which has already passed ends the alarm on reload."""
+    entry = await _setup(hass)
+    cleared = async_capture_events(hass, EVENT_ALARM_CLEARED)
+    client = await hass_client_no_auth()
+
+    await client.get(f"/api/webhook/{WEBHOOK_ID}", params={"keyword": "B3"})
+    freezer.tick(timedelta(minutes=10))
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_RESET_MINUTES: 5}
+    )
+    await hass.async_block_till_done()
+
+    assert hass.states.get("binary_sensor.feuerwehr_alarm").state == "off"
+    assert hass.states.get("sensor.feuerwehr_keyword").state == "B3"
+    assert len(cleared) == 1
