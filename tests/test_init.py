@@ -151,9 +151,7 @@ async def test_webhook_put_json(hass: HomeAssistant, hass_client_no_auth) -> Non
     assert hass.states.get("sensor.feuerwehr_keyword").state == "B2"
 
 
-async def test_long_keyword_truncated(
-    hass: HomeAssistant, hass_client_no_auth
-) -> None:
+async def test_long_keyword_truncated(hass: HomeAssistant, hass_client_no_auth) -> None:
     """A keyword longer than 255 characters is shortened for the state."""
     await _setup(hass)
     client = await hass_client_no_auth()
