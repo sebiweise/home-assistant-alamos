@@ -30,7 +30,11 @@ jobs:
         id: version
         run: |
           version="$(jq -r .version custom_components/alamos/manifest.json)"
-          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+          # SemVer 2.0.0: no leading zeros in numeric identifiers, no empty
+          # identifiers in the pre-release or build metadata.
+          num='(0|[1-9][0-9]*)'
+          pre="($num|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+          semver="^$num\.$num\.$num(-$pre(\.$pre)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?\$"
           if ! [[ "$version" =~ $semver ]]; then
             echo "Version in manifest.json is not SemVer" >&2
             exit 1
