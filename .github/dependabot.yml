@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Version updates wait a week: most hijacked releases are pulled within
+    # days. Security updates are not delayed by this.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"
     groups:
@@ -20,6 +24,8 @@ updates:
       - requirements_test_min.txt
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps"
     groups:
@@ -31,5 +37,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "devcontainer"
