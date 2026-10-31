@@ -44,6 +44,7 @@ let an alarm through rather than drop it.
   both translations and the README (German).
 - Code, comments and commit messages in English; README, PR descriptions
   and German translations in German.
+- No `Co-Authored-By` lines in commit messages.
 
 ## graphify
 
