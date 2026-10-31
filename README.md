@@ -4,8 +4,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
 [![Validate](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
+[![Security](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/sebiweise/home-assistant-alamos)](https://github.com/sebiweise/home-assistant-alamos/releases)
 
 Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH](https://www.alamos.gmbh)
