@@ -93,7 +93,7 @@ def _format_time(name: str, value: str | date) -> str:
 
 def _matches(event: dict[str, Any], keywords: list[str]) -> bool:
     """Return whether the event is not cancelled and contains a keyword."""
-    # Newer Home Assistant versions return the event status; 2024.11 does not.
+    # Newer Home Assistant versions return the event status; 2024.12 does not.
     if str(event.get("status") or "").upper() == "CANCELLED":
         return False
     if not keywords:

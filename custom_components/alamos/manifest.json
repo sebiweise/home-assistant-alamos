@@ -1,6 +1,7 @@
 {
   "domain": "alamos",
   "name": "Alamos (aPager PRO / AMweb)",
+  "categories": ["messaging_notifications.push_notifications", "security_safety"],
   "codeowners": ["@sebiweise"],
   "config_flow": true,
   "dependencies": ["webhook"],
@@ -9,5 +10,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/sebiweise/home-assistant-alamos/issues",
   "requirements": [],
-  "version": "0.7.0"
+  "version": "0.8.0"
 }

@@ -33,7 +33,8 @@
           "api_url": "API base URL",
           "unit_filter": "Unit filter",
           "favorite_unit": "Favorite unit",
-          "test_keywords": "Test alarm keywords"
+          "test_keywords": "Test alarm keywords",
+          "record_raw_data": "Store raw data in the history"
         },
         "data_description": {
           "unit_filter": "Only process alarms of these units (case-insensitive). Empty = all. Alarms without a unit are always processed.",
@@ -41,6 +42,8 @@
           "test_keywords": "If the keyword contains one of these terms (e.g. \"Probealarm\"), only the `test_alarm` event is fired; the alarm sensor stays off.",
           "reset_minutes": "Use 0 for AMweb with a \"no alarm open anymore\" URL.",
           "webhook_count": "Number of webhooks (1–5) with their own alarm count. All 5 webhook URLs above are always active; `?event=recall` and `?event=clear` work with every URL.",
+          "record_raw_data": "The attribute `data` contains all received parameters, possibly the address of the incident or personal data. It is always available in the current state; enable this to also store it in the history (recorder).",
+          "api_url": "Only change this if Alamos moves the API. Use https://: the API key is part of every feedback request.",
           "availability_calendars": "Optional. Events of these calendars are provided as an iCal feed under the URL above, which aPager PRO can import to plan your availability. Empty = feed disabled.",
           "availability_keywords": "Only provide events whose title or description contains one of these terms (case-insensitive), e.g. \"Urlaub\". Empty = all events."
         }
@@ -87,6 +90,18 @@
     "event": {
       "webhook": {
         "name": "Alarm event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "alarm": "Alarm",
+              "test_alarm": "Test alarm",
+              "cleared": "Cleared"
+            }
+          }
+        }
+      },
+      "webhook_alarm_event": {
+        "name": "Alarm event webhook {number}",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -221,6 +236,12 @@
     },
     "api_error": {
       "message": "Error communicating with the Alamos API: {error}"
+    }
+  },
+  "issues": {
+    "insecure_api_url": {
+      "title": "Alamos API key of {name} is sent unencrypted",
+      "description": "The API base URL `{url}` of {name} uses http://, so the API key is sent unencrypted with every feedback. Change it to https:// in the options of the integration, unless the server is only reachable in your local network."
     }
   }
 }
