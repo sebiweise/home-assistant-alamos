@@ -392,6 +392,7 @@ async def test_alarm_lights(hass: HomeAssistant, hass_client_no_auth) -> None:
     await _send_alarm(client)
     await _wait_for(lambda: len(light_on) == 1)
 
+    assert scene_create[0].data["scene_id"] == "alamos_light_snapshot_alarm_lights"
     assert scene_create[0].data["snapshot_entities"] == ["light.flur", "light.treppe"]
     assert light_on[0].data["entity_id"] == ["light.flur", "light.treppe"]
     assert light_on[0].data["brightness_pct"] == 80
@@ -399,7 +400,7 @@ async def test_alarm_lights(hass: HomeAssistant, hass_client_no_auth) -> None:
 
     await client.get(f"/api/webhook/{WEBHOOK_ID}?event=clear")
     await _wait_for(lambda: len(scene_on) == 1)
-    assert scene_on[0].data["entity_id"] == ["scene.alamos_light_snapshot"]
+    assert scene_on[0].data["entity_id"] == ["scene.alamos_light_snapshot_alarm_lights"]
 
 
 async def test_alarm_lights_daytime(hass: HomeAssistant, hass_client_no_auth) -> None:

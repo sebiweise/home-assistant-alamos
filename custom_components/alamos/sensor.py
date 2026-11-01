@@ -16,25 +16,24 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from . import AlamosConfigEntry, entry_webhook_count
+from . import AlamosConfigEntry
 from .alarm import AlarmState
-from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK, DOMAIN, MAX_WEBHOOKS
-from .entity import AlamosEntity
+from .const import ATTR_DATA, ATTR_UNIT, ATTR_UNITS, ATTR_WEBHOOK, FEEDBACK_RESULTS
+from .entity import (
+    KEY_ALARM_COUNT,
+    AlamosEntity,
+    UnrecordedDataMixin,
+    async_remove_webhook_entities,
+    record_raw_data,
+    webhook_entity_numbers,
+    webhook_key,
+)
 
 # Home Assistant does not accept states longer than 255 characters.
 MAX_STATE_LENGTH = 255
-
-FEEDBACK_RESULTS = [
-    "success",
-    "no_alarm",
-    "invalid_api_key",
-    "no_subscription",
-    "error",
-]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -51,7 +50,7 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
     AlamosSensorEntityDescription(
         key="keyword",
         translation_key="keyword",
-        value_fn=lambda state: state.keyword,
+        value_fn=lambda state: _truncate(state.keyword),
         attrs_fn=lambda state: {
             ATTR_UNIT: state.unit,
             ATTR_UNITS: state.units,
@@ -71,7 +70,7 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
         value_fn=lambda state: state.last_alarm,
     ),
     AlamosSensorEntityDescription(
-        key="alarm_count",
+        key=KEY_ALARM_COUNT,
         translation_key="alarm_count",
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -120,7 +119,7 @@ SENSORS: tuple[AlamosSensorEntityDescription, ...] = (
 
 def _webhook_alarm_count(number: int) -> AlamosSensorEntityDescription:
     return AlamosSensorEntityDescription(
-        key=f"alarm_count_{number}",
+        key=webhook_key(KEY_ALARM_COUNT, number),
         translation_key="webhook_alarm_count",
         translation_placeholders={"number": str(number)},
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -134,9 +133,13 @@ def _units_text(state: AlarmState) -> str | None:
     """Return all alarmed units, the favorite / first one leading."""
     if not state.units:
         return state.unit
-    text = ", ".join(state.units)
-    if len(text) > MAX_STATE_LENGTH:
-        text = text[: MAX_STATE_LENGTH - 1] + "…"
+    return _truncate(", ".join(state.units))
+
+
+def _truncate(text: str | None) -> str | None:
+    """Shorten a text to the maximum state length Home Assistant accepts."""
+    if text is not None and len(text) > MAX_STATE_LENGTH:
+        return text[: MAX_STATE_LENGTH - 1] + "…"
     return text
 
 
@@ -153,25 +156,13 @@ async def async_setup_entry(  # NOSONAR
         for description in SENSORS
         if has_api or not description.requires_api
     ]
-    webhook_count = entry_webhook_count(entry)
-    counted = webhook_count if webhook_count > 1 else 0
-    descriptions.extend(
-        _webhook_alarm_count(number) for number in range(1, counted + 1)
+    numbers = webhook_entity_numbers(entry)
+    descriptions.extend(_webhook_alarm_count(number) for number in numbers)
+    async_remove_webhook_entities(hass, entry, SENSOR_DOMAIN, KEY_ALARM_COUNT, numbers)
+    entity_class = (
+        AlamosSensor if record_raw_data(entry) else AlamosSensorUnrecordedData
     )
-    _async_remove_webhook_counts(hass, entry, range(counted + 1, MAX_WEBHOOKS + 1))
-    async_add_entities(AlamosSensor(entry, description) for description in descriptions)
-
-
-def _async_remove_webhook_counts(
-    hass: HomeAssistant, entry: AlamosConfigEntry, numbers: range
-) -> None:
-    """Remove the count sensors of webhooks which are not counted anymore."""
-    registry = er.async_get(hass)
-    for number in numbers:
-        if entity_id := registry.async_get_entity_id(
-            SENSOR_DOMAIN, DOMAIN, f"{entry.entry_id}_alarm_count_{number}"
-        ):
-            registry.async_remove(entity_id)
+    async_add_entities(entity_class(entry, description) for description in descriptions)
 
 
 class AlamosSensor(AlamosEntity, RestoreSensor):
@@ -188,7 +179,7 @@ class AlamosSensor(AlamosEntity, RestoreSensor):
         if value is None:
             return
         description = self.entity_description
-        if description.key == "alarm_count" or description.webhook is not None:
+        if description.key == KEY_ALARM_COUNT or description.webhook is not None:
             self.manager.async_restore(
                 alarm_count=int(value), webhook=description.webhook
             )
@@ -206,3 +197,7 @@ class AlamosSensor(AlamosEntity, RestoreSensor):
         if self.entity_description.attrs_fn is None:
             return None
         return self.entity_description.attrs_fn(self.manager.state)
+
+
+class AlamosSensorUnrecordedData(UnrecordedDataMixin, AlamosSensor):
+    """Sensor without the raw data in the history."""

@@ -4,8 +4,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
 [![Validate](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
+[![Security](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/sebiweise/home-assistant-alamos)](https://github.com/sebiweise/home-assistant-alamos/releases)
 
 Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH](https://www.alamos.gmbh)
@@ -63,7 +62,12 @@ Unter **Einstellungen → Geräte & Dienste → Alamos → Konfigurieren** lasse
 | Kalender für die Verfügbarkeit | *Optional, standardmäßig leer (aus).* Termine dieser Home-Assistant-Kalender stellt die Integration als iCal-Feed für aPager PRO bereit, siehe [Verfügbarkeit aus Home-Assistant-Kalendern](#verfügbarkeit-aus-home-assistant-kalendern) |
 | Nur Kalendertermine mit | Nur Termine in den Feed übernehmen, deren Titel oder Beschreibung einen dieser Begriffe enthält, z. B. `Urlaub`, `Schicht` (Groß-/Kleinschreibung egal). Leer = alle Termine |
 | Parametername Stichwort / Einheit | Falls in der aPager-PRO-App umbenannt (Standard `keyword` / `unit`) |
-| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt |
+| Rohdaten im Verlauf speichern | Standardmäßig aus. Das Attribut `data` (alle empfangenen Parameter, unter Umständen mit Einsatzadresse oder Personendaten) steht dann nur im aktuellen Zustand, z. B. für Templates und Automationen, und wird nicht im Verlauf (Recorder) gespeichert. Einschalten, um es wie in früheren Versionen auch im Verlauf zu behalten |
+| API-Basis-URL | Nur ändern, falls Alamos den Server wechselt. Eine `http://`-URL ist erlaubt (z. B. für einen Server im lokalen Netz), erzeugt aber eine Reparaturmeldung, weil der API-Schlüssel dann unverschlüsselt übertragen wird |
+
+Speicherst du die Optionen während eines laufenden Alarms, bleibt der Alarm mit Stichwort und Einheiten erhalten. Das
+automatische Zurücksetzen zählt weiter ab Beginn des Alarms, mit der neu eingestellten Zeit. Ist diese Zeit schon
+abgelaufen, endet der Alarm sofort (mit `cleared`).
 
 Nach dem Abschluss zeigt Home Assistant die **Webhook-URLs** an. Du findest sie später jederzeit in den
 **Optionen** der Integration. Sie haben folgende Form:
@@ -83,10 +87,37 @@ hat dafür 5 Webhook-URLs, die immer aktiv sind; die Optionen zeigen alle an. `?
 funktionieren mit jeder davon.
 
 Alle Webhooks teilen sich den Alarm-Sensor und die Einstellungen. Mit **Anzahl Webhooks** in den Optionen legst du fest,
-für wie viele Webhooks es einen eigenen Zähler `sensor.<name>_alarm_count_webhook_<n>` gibt (ab 2). Ein Webhook zählt
-jeden Alarm einmal, auch wenn er in einen laufenden Alarm zusammengefasst wird. `sensor.<name>_alarm_count` zählt
-weiterhin jeden Alarm genau einmal, egal über wie viele Webhooks er kam. Verringerst du die Anzahl, werden die Zähler
-der weggefallenen Webhooks entfernt; ihre URLs nehmen aber weiter Alarme an.
+für wie viele Webhooks es eigene Entitäten gibt (ab 2): einen Zähler `sensor.<name>_alarm_count_webhook_<n>` und eine
+Event-Entität `event.<name>_alarm_event_webhook_<n>`. Ein Webhook zählt jeden Alarm einmal, auch wenn er in einen
+laufenden Alarm zusammengefasst wird. `sensor.<name>_alarm_count` zählt weiterhin jeden Alarm genau einmal, egal über
+wie viele Webhooks er kam. Verringerst du die Anzahl, werden die Entitäten der weggefallenen Webhooks entfernt; ihre URLs
+nehmen aber weiter Alarme an.
+
+Die Event-Entität eines Webhooks löst aus, sobald dieser Webhook einen Alarm meldet, auch wenn er in einen laufenden
+Alarm zusammengefasst wird. `event.<name>_alarm_event` und das Event `alamos_alarm` kommen dagegen nur einmal je Alarm
+und nennen nur den zuerst eingetroffenen Webhook. Für eine Automation, die auf einen bestimmten Webhook reagieren soll,
+nimmst du daher dessen Event-Entität:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.feuerwehr_alarm_event_webhook_2
+conditions:
+  - condition: state
+    entity_id: event.feuerwehr_alarm_event_webhook_2
+    attribute: event_type
+    state: alarm
+```
+
+Probealarme (`test_alarm`) und Rückalarme (`cleared`) über diesen Webhook kommen dort ebenfalls an, je Webhook nur
+einmal. Endet ein Alarm, egal wie (Rückalarm oder `?event=clear` über einen beliebigen Webhook, automatisches
+Zurücksetzen, `alamos.reset_alarm`), bekommen alle Webhooks, die den Alarm gemeldet haben, `cleared`. Das gilt auch,
+wenn ein neuer Alarm den laufenden ablöst (anderes Stichwort oder mehr als 30 Sekunden später): Die Webhooks des alten
+Alarms bekommen zuerst `cleared`. Der Alarm-Sensor bleibt dabei an und `alamos_alarm_cleared` kommt nicht, weil
+direkt der neue Alarm läuft.
+
+Bei einem zusammengefassten Webhook enthält das Attribut `unit` die Einheit dieses Webhooks, `units` alle bis dahin
+gemeldeten Einheiten des Alarms und `feedback_deadline` die Frist ab Beginn des Alarms.
 
 | `event` | Wirkung |
 | --- | --- |
@@ -125,7 +156,8 @@ Probealarme und Rückalarme mehrerer Einheiten werden ebenfalls nur einmal gemel
 - iOS akzeptiert nur `https://`-URLs. POST gibt es unter iOS erst ab Version 1.22.0, sonst `GET` verwenden.
 - URL-Platzhalter (`{unit}`, `{keyword}`) und ein eigener Header (ab aPager PRO 6.1) sind nicht nötig: Die Webhook-ID in der URL ist das Geheimnis.
 - Mit **Webhook testen** in der App schickt der aPager PRO `unit1` / `B3`. Das taucht in Home Assistant als normaler Alarm auf.
-- Jeder Aufruf landet im Diagnose-Sensor **Letzter Webhook** (Rohdaten und Ergebnis, im Verlauf nachvollziehbar). Zusätzlich schreibt die Integration jeden Aufruf ins Log, wenn du in der `configuration.yaml` Folgendes einträgst:
+- Jeder Aufruf landet im Diagnose-Sensor **Letzter Webhook** (Rohdaten und Ergebnis, im Verlauf nachvollziehbar; die
+  Rohdaten nur mit der Option „Rohdaten im Verlauf speichern“). Zusätzlich schreibt die Integration jeden Aufruf ins Log, wenn du in der `configuration.yaml` Folgendes einträgst:
 
   ```yaml
   logger:
@@ -222,7 +254,7 @@ beliebigen Home-Assistant-Kalendern bereit, z. B. aus einem lokalen Kalender mit
 
 Der Feed enthält Termine ab heute bis 6 Monate im Voraus mit Titel, Beschreibung, Beginn und Ende (ganztägige Termine
 bleiben ganztägig). Ort und Teilnehmer werden nicht übertragen. Abgesagte Termine werden ausgelassen, sofern
-Home Assistant den Terminstatus liefert (neuere Versionen; in 2024.11 enthält `calendar.get_events` ihn noch nicht).
+Home Assistant den Terminstatus liefert (neuere Versionen; die Mindestversion 2024.12 liefert ihn in `calendar.get_events` noch nicht).
 Ist ein gewählter Kalender gerade nicht lesbar, antwortet der Feed mit einem Fehler statt mit einem leeren Kalender, damit die App ihre zuletzt synchronisierten
 Einträge behält.
 
@@ -240,10 +272,11 @@ Einträge behält.
 
 | Entität | Beschreibung |
 | --- | --- |
-| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
+| `binary_sensor.<name>_alarm` | `on`, solange ein Alarm aktiv ist. Attribute: `keyword`, `unit`, `units` (alle alarmierten Einheiten, siehe „Mehrere Einheiten“), `source`, `data` (alle empfangenen Parameter, standardmäßig nicht im Verlauf gespeichert, siehe Optionen), `feedback_deadline` (bis wann eine Rückmeldung über die API möglich ist) |
 | `event.<name>_alarm_event` | Event-Entität mit den Event-Typen `alarm`, `test_alarm` und `cleared` (bei `event=recall` mit `recall: true`, `keyword`, `unit`, `data`) |
+| `event.<name>_alarm_event_webhook_<n>` | Event-Entität je Webhook, löst auch bei zusammengefassten Alarmen aus *(nur ab 2 Webhooks, siehe [Mehrere Webhooks](#mehrere-webhooks))* |
 | `sensor.<name>_keyword` | Stichwort des letzten Alarms |
-| `sensor.<name>_last_webhook` | *Diagnose.* Zeitpunkt des letzten Webhook-Aufrufs, egal ob Alarm, zusammengefasst, Probealarm, Rückalarm oder vom Einheiten-Filter ignoriert. Attribute: `received` (genauer Zeitpunkt), `webhook` (Nummer), `method`, `result` (`ok`, `merged`, `test`, `cleared`, `ignored`), `data` (Rohdaten). Im Verlauf steht damit jeder einzelne Aufruf |
+| `sensor.<name>_last_webhook` | *Diagnose.* Zeitpunkt des letzten Webhook-Aufrufs, egal ob Alarm, zusammengefasst, Probealarm, Rückalarm oder vom Einheiten-Filter ignoriert. Attribute: `received` (genauer Zeitpunkt), `webhook` (Nummer), `method`, `result` (`ok`, `merged`, `test`, `cleared`, `ignored`), `data` (Rohdaten). Im Verlauf steht damit jeder einzelne Aufruf, die Rohdaten aber nur mit der Option „Rohdaten im Verlauf speichern“ |
 | `sensor.<name>_unit` | Alle Einheiten des letzten Alarms, Favoriten-Einheit zuerst (z. B. `LZ2, LZ1`). Attribute: `unit` (Haupteinheit), `units` (Liste) |
 | `sensor.<name>_last_alarm` | Zeitpunkt des letzten Alarms |
 | `sensor.<name>_alarm_count` | Anzahl empfangener Alarme, jeder Alarm einmal (Diagnose) |
@@ -266,6 +299,11 @@ data:
 response_variable: result # optional: {"results": [{"status": 200, "result": "success", ...}]}
 ```
 
+Bei mehreren Einträgen meldet jeder Eintrag für sich zurück. Schlägt die Rückmeldung bei einem Eintrag fehl (z. B.
+falscher API-Schlüssel), melden die übrigen trotzdem zurück; der fehlgeschlagene Eintrag steht in `results` mit
+`status: null`, dem Ergebnis (z. B. `invalid_api_key`) und der Fehlermeldung in `error`. Der Service schlägt nur fehl,
+wenn kein Eintrag zurückmelden konnte.
+
 ### `alamos.reset_alarm`
 
 Setzt den Alarm-Sensor zurück (optional `config_entry_id`).
@@ -287,7 +325,7 @@ data:
 | Event | Daten |
 | --- | --- |
 | `alamos_alarm` | `config_entry_id`, `name`, `keyword`, `unit`, `units`, `data`, `test` (`true` bei Probealarm), `webhook` (Nummer des Webhooks), `feedback_deadline` (ISO-Zeitstempel, Alarm + 3 Minuten) |
-| `alamos_alarm_cleared` | `config_entry_id`, `name`; bei `event=recall` zusätzlich `recall: true`, `keyword`, `unit`, `webhook`, `data` |
+| `alamos_alarm_cleared` | `config_entry_id`, `name`; bei `event=recall` zusätzlich `recall: true`, `keyword`, `unit`, `units`, `webhook`, `data` |
 
 ## Blueprints
 

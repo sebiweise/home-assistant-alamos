@@ -6,6 +6,8 @@ from datetime import timedelta
 from typing import Final
 
 DOMAIN: Final = "alamos"
+# hass.data key for the alarm state handed over while an entry reloads.
+DATA_ALARM_SNAPSHOTS: Final = f"{DOMAIN}_alarm_snapshots"
 
 # Alamos availability API (aPager PRO "Externer Zugriff" / Smart Home)
 DEFAULT_API_URL: Final = "https://alamos-backend.ey.r.appspot.com"
@@ -14,6 +16,19 @@ FEEDBACK_PATH: Final = "/fe2/feedback/user/external"
 FEEDBACK_MODE_ACCEPT: Final = "accept"
 FEEDBACK_MODE_REJECT: Final = "reject"
 FEEDBACK_MODES: Final = [FEEDBACK_MODE_ACCEPT, FEEDBACK_MODE_REJECT]
+# Results of a feedback request, the options of the last_feedback sensor.
+FEEDBACK_RESULT_SUCCESS: Final = "success"
+FEEDBACK_RESULT_NO_ALARM: Final = "no_alarm"
+FEEDBACK_RESULT_INVALID_API_KEY: Final = "invalid_api_key"
+FEEDBACK_RESULT_NO_SUBSCRIPTION: Final = "no_subscription"
+FEEDBACK_RESULT_ERROR: Final = "error"
+FEEDBACK_RESULTS: Final = [
+    FEEDBACK_RESULT_SUCCESS,
+    FEEDBACK_RESULT_NO_ALARM,
+    FEEDBACK_RESULT_INVALID_API_KEY,
+    FEEDBACK_RESULT_NO_SUBSCRIPTION,
+    FEEDBACK_RESULT_ERROR,
+]
 # The API only answers alarms received within the last three minutes.
 FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 # aPager PRO Android (6.9.0+) calls the webhook once per alarmed unit. Webhooks
@@ -38,6 +53,9 @@ CONF_UNIT_PARAM: Final = "unit_param"
 CONF_UNIT_FILTER: Final = "unit_filter"
 CONF_TEST_KEYWORDS: Final = "test_keywords"
 CONF_FAVORITE_UNIT: Final = "favorite_unit"
+# Whether the raw webhook data (attribute "data", may contain the address of
+# the incident or personal data) is stored in the recorder history.
+CONF_RECORD_RAW_DATA: Final = "record_raw_data"
 CONF_AVAILABILITY_CALENDARS: Final = "availability_calendars"
 CONF_AVAILABILITY_KEYWORDS: Final = "availability_keywords"
 
@@ -45,6 +63,7 @@ DEFAULT_RESET_MINUTES: Final = 30
 DEFAULT_WEBHOOK_COUNT: Final = 1
 DEFAULT_KEYWORD_PARAM: Final = "keyword"
 DEFAULT_UNIT_PARAM: Final = "unit"
+DEFAULT_RECORD_RAW_DATA: Final = False
 
 # Query / body parameter used to tell the integration which event happened.
 # AMweb can call one URL on a new alarm and another one when no alarm is open

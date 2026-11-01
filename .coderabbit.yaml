@@ -31,12 +31,12 @@ reviews:
   path_instructions:
     - path: "custom_components/alamos/**/*.py"
       instructions: >-
-        Home-Assistant-Custom-Integration (HACS, min. HA 2024.11.0). Prüfe
+        Home-Assistant-Custom-Integration (HACS, min. HA 2024.12.0). Prüfe
         HA-Konventionen: async-only, kein blockierendes I/O im Event-Loop,
         Typannotationen, Entitäten über die Basis in entity.py, Optionen in
         entry.options, Webhook-ID in entry.data. Lint und Format übernimmt
-        Ruff (pyproject.toml), Code-Smells meldet SonarCloud: diese nicht
-        wiederholen. Wichtigster Maßstab: Kein Pfad darf einen Alarm still
+        Ruff (pyproject.toml), Sicherheitsfunde meldet der Security-Scan:
+        diese nicht wiederholen. Wichtigster Maßstab: Kein Pfad darf einen Alarm still
         verwerfen. Im Zweifel Alarm durchlassen (z. B. ohne Einheit passiert
         er den Einheiten-Filter). Fehler aus der Feedback-API dürfen den
         Alarmempfang nie blockieren. `# NOSONAR` an von HA vorgegebenen

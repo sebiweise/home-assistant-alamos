@@ -1,32 +1,69 @@
-"""Event entity for incoming Alamos alarms."""
+"""Event entities for incoming Alamos alarms."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.event import EventEntity, EventEntityDescription
+from homeassistant.components.event import (
+    DOMAIN as EVENT_DOMAIN,
+    EventEntity,
+    EventEntityDescription,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import AlamosConfigEntry
 from .const import EVENT_TYPE_ALARM, EVENT_TYPE_CLEARED, EVENT_TYPE_TEST_ALARM
-from .entity import AlamosEntity
-
-EVENT_DESCRIPTION = EventEntityDescription(
-    key="webhook",
-    translation_key="webhook",
-    event_types=[EVENT_TYPE_ALARM, EVENT_TYPE_TEST_ALARM, EVENT_TYPE_CLEARED],
+from .entity import (
+    KEY_WEBHOOK_EVENT,
+    AlamosEntity,
+    UnrecordedDataMixin,
+    async_remove_webhook_entities,
+    record_raw_data,
+    webhook_entity_numbers,
+    webhook_key,
 )
+
+EVENT_TYPES = [EVENT_TYPE_ALARM, EVENT_TYPE_TEST_ALARM, EVENT_TYPE_CLEARED]
+EVENT_DESCRIPTION = EventEntityDescription(
+    key=KEY_WEBHOOK_EVENT,
+    translation_key="webhook",
+    event_types=EVENT_TYPES,
+)
+
+
+def _webhook_event(number: int) -> EventEntityDescription:
+    return EventEntityDescription(
+        key=webhook_key(KEY_WEBHOOK_EVENT, number),
+        translation_key="webhook_alarm_event",
+        translation_placeholders={"number": str(number)},
+        event_types=EVENT_TYPES,
+    )
 
 
 # Home Assistant requires this exact coroutine signature.
 async def async_setup_entry(  # NOSONAR
-    hass: HomeAssistant,  # NOSONAR
+    hass: HomeAssistant,
     entry: AlamosConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the event entity."""
-    async_add_entities([AlamosEvent(entry, EVENT_DESCRIPTION)])
+    """Set up the event entities."""
+    numbers = webhook_entity_numbers(entry)
+    async_remove_webhook_entities(hass, entry, EVENT_DOMAIN, KEY_WEBHOOK_EVENT, numbers)
+    if record_raw_data(entry):
+        event_class, webhook_event_class = AlamosEvent, AlamosWebhookEvent
+    else:
+        event_class = AlamosEventUnrecordedData
+        webhook_event_class = AlamosWebhookEventUnrecordedData
+    async_add_entities(
+        [
+            event_class(entry, EVENT_DESCRIPTION),
+            *(
+                webhook_event_class(entry, _webhook_event(number), number)
+                for number in numbers
+            ),
+        ]
+    )
 
 
 class AlamosEvent(AlamosEntity, EventEntity):
@@ -40,3 +77,41 @@ class AlamosEvent(AlamosEntity, EventEntity):
     def _handle_event(self, event_type: str, data: dict[str, Any]) -> None:
         self._trigger_event(event_type, data)
         self.async_write_ha_state()
+
+
+class AlamosWebhookEvent(AlamosEntity, EventEntity):
+    """Fires for every alarm reported by one webhook, merged or not."""
+
+    def __init__(
+        self,
+        entry: AlamosConfigEntry,
+        description: EventEntityDescription,
+        webhook: int,
+    ) -> None:
+        """Initialize the entity."""
+        super().__init__(entry, description)
+        self._webhook = webhook
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to the events of this webhook."""
+        self.async_on_remove(
+            self.manager.async_add_webhook_listener(self._handle_event)
+        )
+
+    @callback
+    def _handle_event(
+        self, webhook: int, event_type: str, data: dict[str, Any]
+    ) -> None:
+        """Fire the event if it was reported by this webhook."""
+        if webhook != self._webhook:
+            return
+        self._trigger_event(event_type, data)
+        self.async_write_ha_state()
+
+
+class AlamosEventUnrecordedData(UnrecordedDataMixin, AlamosEvent):
+    """Alarm event without the raw data in the history."""
+
+
+class AlamosWebhookEventUnrecordedData(UnrecordedDataMixin, AlamosWebhookEvent):
+    """Webhook alarm event without the raw data in the history."""
