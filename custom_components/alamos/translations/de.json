@@ -20,12 +20,14 @@
     "step": {
       "init": {
         "title": "Alamos Optionen",
-        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für Rückalarm / Alarmabbruch:\n`{webhook_recall_url}`\n\nWebhook-URL für „kein Alarm mehr offen“:\n`{webhook_clear_url}`{additional_webhooks}",
+        "description": "Webhook-URL für neue Alarme:\n`{webhook_url}`\n\nWebhook-URL für Rückalarm / Alarmabbruch:\n`{webhook_recall_url}`\n\nWebhook-URL für „kein Alarm mehr offen“:\n`{webhook_clear_url}`{additional_webhooks}\n\niCal-URL für die Verfügbarkeit in aPager PRO (nur aktiv, wenn unten Kalender gewählt sind; in aPager PRO unter Verfügbarkeit → Planung → automatische Synchronisation eintragen):\n`{calendar_url}`",
         "data": {
           "api_key": "API-Schlüssel (leer lassen, um die API zu deaktivieren)",
           "suppress_notification": "Bestätigungs-Push unterdrücken",
           "reset_minutes": "Alarm automatisch zurücksetzen nach (Minuten, 0 = nie)",
           "webhook_count": "Anzahl Webhooks",
+          "availability_calendars": "Kalender für die Verfügbarkeit in aPager PRO",
+          "availability_keywords": "Nur Kalendertermine mit",
           "keyword_param": "Parametername für das Stichwort",
           "unit_param": "Parametername für die Einheit",
           "api_url": "API-Basis-URL",
@@ -41,7 +43,9 @@
           "reset_minutes": "Für AMweb mit „kein Alarm mehr offen“-URL kann 0 gewählt werden.",
           "webhook_count": "Für wie viele Webhooks (1–5) es einen eigenen Alarmzähler gibt. Alle 5 Webhook-URLs oben sind immer aktiv; `?event=recall` und `?event=clear` funktionieren mit jeder URL.",
           "record_raw_data": "Das Attribut `data` enthält alle empfangenen Parameter, unter Umständen die Einsatzadresse oder personenbezogene Daten. Im aktuellen Zustand steht es immer zur Verfügung; aktivieren, um es auch im Verlauf (Recorder) zu speichern.",
-          "api_url": "Nur ändern, falls Alamos die API umzieht. https:// verwenden: Der API-Schlüssel ist Teil jeder Rückmeldung."
+          "api_url": "Nur ändern, falls Alamos die API umzieht. https:// verwenden: Der API-Schlüssel ist Teil jeder Rückmeldung.",
+          "availability_calendars": "Optional. Termine dieser Kalender werden unter der URL oben als iCal-Feed bereitgestellt, den aPager PRO für die Planung deiner Verfügbarkeit einlesen kann. Leer = Feed aus.",
+          "availability_keywords": "Nur Termine bereitstellen, deren Titel oder Beschreibung einen dieser Begriffe enthält (Groß-/Kleinschreibung egal), z. B. „Urlaub“. Leer = alle Termine."
         }
       }
     }

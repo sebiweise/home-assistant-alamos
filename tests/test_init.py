@@ -674,7 +674,7 @@ async def test_last_webhook_sensor(hass: HomeAssistant, hass_client_no_auth) -> 
 async def test_migration_adds_webhooks(hass: HomeAssistant) -> None:
     """Entries from before multiple webhooks get the additional webhook IDs."""
     entry = await _setup(hass)
-    assert entry.minor_version == 2
+    assert entry.minor_version == 3
     assert entry.data[CONF_WEBHOOK_ID] == WEBHOOK_ID
     assert len(set(entry.data[CONF_ADDITIONAL_WEBHOOK_IDS])) == 4
     assert not hass.states.get("sensor.feuerwehr_alarm_count_webhook_1")
