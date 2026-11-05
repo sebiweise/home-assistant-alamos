@@ -505,6 +505,12 @@ als Wheels installiert (`--only-binary :all: --require-hashes`). Ausnahmen sind 
 die ausschließlich als Quellpaket veröffentlicht werden. Dependabot aktualisiert sie wöchentlich,
 ebenso die per Commit-SHA gepinnten GitHub Actions und das Devcontainer-Image.
 
+## Unterstützen
+
+Die Integration ist kostenlos und Open Source. Wenn sie dir hilft und du Danke sagen möchtest,
+kannst du mich über [GitHub Sponsors](https://github.com/sponsors/sebiweise) unterstützen.
+Fehlerberichte und Pull Requests helfen genauso viel.
+
 ## Lizenz
 
 [MIT](LICENSE)
