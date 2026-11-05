@@ -508,7 +508,7 @@ ebenso die per Commit-SHA gepinnten GitHub Actions und das Devcontainer-Image.
 ## Unterstützen
 
 Die Integration ist kostenlos und Open Source. Wenn sie dir hilft und du Danke sagen möchtest,
-kannst du mich über [GitHub Sponsors](https://github.com/sponsors/sebiweise) unterstützen.
+kannst du mir gern [einen Kaffee ausgeben](https://buymeacoffee.com/sebiweise).
 Fehlerberichte und Pull Requests helfen genauso viel.
 
 ## Lizenz
