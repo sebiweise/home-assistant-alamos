@@ -28,6 +28,8 @@ from custom_components.alamos.const import (
     EVENT_ALARM,
     EVENT_ALARM_CLEARED,
     FEEDBACK_PATH,
+    MAX_UNIT_LENGTH,
+    MAX_UNITS,
 )
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, State
@@ -549,6 +551,29 @@ async def test_webhooks_per_unit_are_merged(
     await hass.async_block_till_done()
     assert len(alarms) == 3
     assert hass.states.get("sensor.feuerwehr_alarm_count").state == "3"
+
+
+async def test_merged_units_are_bounded(hass: HomeAssistant, freezer) -> None:
+    """Merged units are deduplicated ignoring case, capped and truncated."""
+    entry = await _setup(hass)
+    manager = entry.runtime_data.manager
+    long_unit = "X" * (MAX_UNIT_LENGTH + 50)
+
+    assert manager.async_alarm("B3", long_unit, {}, "webhook", "alarm", 1)
+    freezer.tick(timedelta(seconds=5))
+    for unit in ("lz1", "LZ1", "Lz1", "x" * MAX_UNIT_LENGTH):
+        assert not manager.async_alarm(None, unit, {}, "webhook", "alarm", 1)
+    for number in range(MAX_UNITS + 10):
+        assert not manager.async_alarm(None, f"U{number}", {}, "webhook", "alarm", 1)
+    await hass.async_block_till_done()
+
+    units = manager.state.units
+    assert len(units) == MAX_UNITS
+    assert units[0] == "X" * MAX_UNIT_LENGTH
+    assert units[1] == "lz1"
+    assert "LZ1" not in units
+    state = hass.states.get("binary_sensor.feuerwehr_alarm")
+    assert state.attributes["units"] == units
 
 
 async def test_repeated_test_alarm_and_recall(
