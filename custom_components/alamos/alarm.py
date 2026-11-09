@@ -24,6 +24,8 @@ from .const import (
     EVENT_TYPE_CLEARED,
     EVENT_TYPE_TEST_ALARM,
     FEEDBACK_WINDOW,
+    MAX_UNIT_LENGTH,
+    MAX_UNITS,
     MERGE_WINDOW,
 )
 
@@ -180,12 +182,20 @@ class AlamosAlarmManager:
                 or _same_keyword(state.keyword, keyword)
             )
         ):
+            changed = state.keyword is None and keyword is not None
             state.keyword = state.keyword or keyword
-            if unit and unit not in state.units:
-                state.units = self._sort_units([*state.units, unit])
+            stored = unit[:MAX_UNIT_LENGTH] if unit else None
+            if (
+                stored
+                and len(state.units) < MAX_UNITS
+                and not _has_unit(state.units, stored)
+            ):
+                state.units = self._sort_units([*state.units, stored])
+                changed = True
             state.unit = state.units[0] if state.units else None
             counted = self._count_alarm(webhook)
-            self._notify()
+            if changed or counted:
+                self._notify()
             if counted:
                 self._notify_webhook(
                     webhook, event_type, self._alarm_event_data(unit, data, webhook)
@@ -200,8 +210,8 @@ class AlamosAlarmManager:
 
         state.active = True
         state.keyword = keyword
-        state.unit = unit
-        state.units = [unit] if unit else []
+        state.unit = unit[:MAX_UNIT_LENGTH] if unit else None
+        state.units = [unit[:MAX_UNIT_LENGTH]] if unit else []
         state.data = data
         state.source = source
         state.last_alarm = now
@@ -470,6 +480,12 @@ class AlamosAlarmManager:
         if self._cancel_reset is not None:
             self._cancel_reset()
             self._cancel_reset = None
+
+
+def _has_unit(units: list[str], unit: str) -> bool:
+    """Return True if the units contain the unit, ignoring case."""
+    folded = unit.casefold()
+    return any(known.casefold() == folded for known in units)
 
 
 def _same_keyword(first: str | None, second: str | None) -> bool:
