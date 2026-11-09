@@ -36,6 +36,10 @@ FEEDBACK_WINDOW: Final = timedelta(minutes=3)
 MERGE_WINDOW: Final = timedelta(seconds=30)
 # aPager PRO supports up to five general webhooks.
 MAX_WEBHOOKS: Final = 5
+# Bounds of the units list of one alarm. Webhooks of further units still merge
+# into the alarm and fire their events, only the list stops growing.
+MAX_UNITS: Final = 50
+MAX_UNIT_LENGTH: Final = 255
 
 # Config entry data / options
 CONF_API_KEY: Final = "api_key"
