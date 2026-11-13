@@ -6,6 +6,7 @@
 [![Validate](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml)
 [![Security](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/sebiweise/home-assistant-alamos)](https://github.com/sebiweise/home-assistant-alamos/releases)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=sebiweise_home-assistant-alamos&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=sebiweise_home-assistant-alamos)
 
 Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH](https://www.alamos.gmbh)
 (aPager PRO, AMweb). Sie bringt zwei Funktionen mit:
