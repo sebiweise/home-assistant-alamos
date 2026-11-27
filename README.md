@@ -2,7 +2,7 @@
 
 # Alamos für Home Assistant (aPager PRO / AMweb)
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz)
 [![Validate](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/validate.yml)
 [![Security](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml/badge.svg)](https://github.com/sebiweise/home-assistant-alamos/actions/workflows/security.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/sebiweise/home-assistant-alamos)](https://github.com/sebiweise/home-assistant-alamos/releases)
@@ -25,10 +25,24 @@ Eine Home-Assistant-Integration für die Alarmierungslösungen der [Alamos GmbH]
 
 ### Über HACS (empfohlen)
 
+Die Integration ist im Standardkatalog von HACS enthalten:
+
+[![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=sebiweise&repository=home-assistant-alamos&category=integration)
+
+1. HACS öffnen und nach **Alamos** suchen (oder den Button oben verwenden)
+2. „Alamos (aPager PRO / AMweb)“ herunterladen und Home Assistant neu starten
+3. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Alamos**
+
+<details>
+<summary>Alternativ: als benutzerdefiniertes Repository hinzufügen</summary>
+
+Falls die Integration in deiner HACS-Installation nicht gefunden wird:
+
 1. HACS öffnen → Menü (⋮) → **Benutzerdefinierte Repositories**
 2. URL `https://github.com/sebiweise/home-assistant-alamos` mit Kategorie **Integration** hinzufügen
-3. „Alamos (aPager PRO / AMweb)“ installieren und Home Assistant neu starten
-4. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Alamos**
+3. Weiter mit Schritt 2 oben
+
+</details>
 
 ### Manuell
 
